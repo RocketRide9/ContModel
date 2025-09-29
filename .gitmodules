@@ -1,0 +1,6 @@
+[submodule "SparkAlgos"]
+	path = SparkAlgos
+	url = ../SparkAlgos.git
+[submodule "SparkCL"]
+	path = SparkCL
+	url = ../SparkCL.git

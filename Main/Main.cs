@@ -31,6 +31,7 @@ class Program
         Trace.WriteLine($"SparkCL Init: {sw.ElapsedMilliseconds}ms");
 
         ReverseSigma();
+        // ReverseI();
         return;
         ElectroMany();
         Spline();
@@ -73,9 +74,8 @@ class Program
     
     static void ReverseI()
     {
-        // TODO: дописать
         // u -> e
-        Real[] weights = [1, 1, 1, 1];
+        Real[] weights = [1, 0.5, 1, 1];
         // измеренные напряжённости, с какой-то погрешностью
         PairF64[] e_measured = [
             new(3.710883057100038e-07, -4.652739107054252e-08),
@@ -84,7 +84,7 @@ class Program
             new(2.858623606945764e-08, -7.38675306794607e-10)
         ];
         // начальное значение проводимости
-        Real u_guide = 6.5; // 6
+        Real i_guide = 2; // 1
         // истинные напряжённости
         PairF64[] e_true = [
             new(3.710883057100038e-07, -4.652739107054252e-08),
@@ -92,31 +92,30 @@ class Program
             new(4.878075851331915e-08, -1.811845815180536e-09),
             new(2.858623606945764e-08, -7.38675306794607e-10)
         ];
-        // e_measured = e_true;
+        e_measured[1] *= 1.05;
         Real alpha = 0;
         
         Real j0 = 0;
-        var e0 = ElectroOnce(u_guide);
+        var e0 = ElectroOnce();
         for (int i = 0; i < 4; i++)
         {
-            var w = (e_measured[i] - e0[i]) * weights[i] / e_measured[i].Norm;
+            var w = (e_measured[i] - e0[i]*i_guide) * weights[i] / e_measured[i].Norm;
             j0 += w*w;
         }
         
         Console.WriteLine($"j0: {j0}");
         
         Real beta = 1;
-        Real u0 = u_guide;
+        Real i0 = i_guide;
 
         int iter = 0;
         while (true)
         {
             // дифференциал
             var diffU = new PairF64[4];
-            var e1 = ElectroOnce(1.05*u0);
             for (int i = 0; i < 4; i++)
             {  
-                diffU[i] = (e0[i]-e1[i])/(0.05*u0);
+                diffU[i] = -e0[i];
             }
             
             // A
@@ -128,35 +127,34 @@ class Program
             }
             
             // f
-            Real f = -alpha * (u0 - u_guide);
+            Real f = -alpha * (i0 - i_guide);
             for (int i = 0; i < 4; i++)
             {
                 var w = weights[i] / e_measured[i].Norm;
-                f -= w*w * (e_measured[i] - e0[i]) * diffU[i];
+                f -= w*w * (e_measured[i] - e0[i]*i0) * diffU[i];
             }
             
             // новое решение
             var du = f/a;
-            u0 += beta * du;
+            i0 += beta * du;
             
             // новое значение функционала
             Real j1 = 0;
-            e0 = ElectroOnce(u0);
             for (int i = 0; i < 4; i++)
             {
-                var w = (e_measured[i] - e0[i]) * weights[i] / e_measured[i].Norm;
+                var w = (e_measured[i] - e0[i]*i0) * weights[i] / e_measured[i].Norm;
                 j1 += w*w;
             }
 
             iter++;
-            if (j0 < j1) {
+            if (j0 <= j1) {
                 beta /= 2.0;
                 if (beta < 1.0/4.0) {
                     break;
                 }
             }
             
-            Console.WriteLine($"sigma: {u0}");
+            Console.WriteLine($"I: {i0}");
             Console.WriteLine($"j: {j1}");
             
             j0 = j1;
@@ -168,7 +166,7 @@ class Program
     static void ReverseSigma()
     {
         // u -> e
-        Real[] weights = [1, 1, 1, 1];
+        Real[] weights = [1, 0.5, 1, 1];
         // измеренные напряжённости, с какой-то погрешностью
         PairF64[] e_measured = [
             new(3.710883057100038e-07, -4.652739107054252e-08),
@@ -185,6 +183,7 @@ class Program
             new(4.878075851331915e-08, -1.811845815180536e-09),
             new(2.858623606945764e-08, -7.38675306794607e-10)
         ];
+        e_measured[1] *= 1.05;
         // e_measured = e_true;
         Real alpha = 0;
         
@@ -242,7 +241,7 @@ class Program
             }
 
             iter++;
-            if (j0 < j1) {
+            if (j0 <= j1) {
                 beta /= 2.0;
                 if (beta < 1.0/4.0) {
                     break;
@@ -258,10 +257,12 @@ class Program
         Console.WriteLine($"Iterations: {iter}");
     }
     
-    static PairF64[] ElectroOnce(Real sigma)
+    static PairF64[] ElectroOnce(Real? sigma = null)
     {
         var task = new TaskElectro();
-        task.Sigma = sigma;
+        if (sigma.HasValue) {
+            task.Sigma = sigma.Value;
+        }
         var prob = new ProblemLine(task, SRC_DIR + "InputElectro");
         
         // prob.MeshRefine(new()

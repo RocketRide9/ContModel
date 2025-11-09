@@ -9,7 +9,7 @@ class TaskElectro : TaskFuncs
         throw new NotSupportedException();
     }
 
-    public Real Sigma { get; set; } = 7;
+    public Real Sigma { get; set; } = 6;
     public Real Lambda(int subdom, Real x, Real y)
     {
         return subdom switch

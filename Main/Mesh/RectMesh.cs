@@ -2,12 +2,6 @@ using Real = double;
 
 public class RectMesh
 {
-    Subdomain[] _subDomains;
-    public Subdomain[] SubDomains { get => _subDomains; }
-
-    BoundaryCondition[] _boundaryConditions;
-    public BoundaryCondition[] BoundaryConditions { get => _boundaryConditions; }
-
     RefineParams _refineParams;
 
     public Real[] Xw;
@@ -21,14 +15,10 @@ public class RectMesh
     public int feCount;
 
     public RectMesh(
-        Real[] xAxis, Real[] yAxis,
-        Subdomain[] subDomains,
-        BoundaryCondition[] boundaryConditions
+        Real[] xAxis, Real[] yAxis
     ) {
         Xw = xAxis;
         Yw = yAxis;
-        _subDomains = subDomains;
-        _boundaryConditions = boundaryConditions;
 
         X = (Real[])Xw.Clone();
         Y = (Real[])Yw.Clone();
@@ -62,34 +52,6 @@ public class RectMesh
         /*  */
 
         return iy * X.Length + ix;
-    }
-
-    public int? GetSubdomNumAtElCoords (int x1, int y1)
-    {
-        foreach (var a in SubDomains)
-        {
-            if (x1 >= IXw[a.X1] && x1 < IXw[a.X2] &&
-                y1 >= IYw[a.Y1] && y1 < IYw[a.Y2]
-            ) {
-                return a.Num;
-            }
-        }
-
-        return null;
-    }
-
-    public int? GetSubdomNumAtPoint (Real x1, Real y1)
-    {
-        foreach (var a in SubDomains)
-        {
-            if (x1 >= Xw[a.X1] && x1 <= Xw[a.X2] &&
-                y1 >= Yw[a.Y1] && y1 <= Yw[a.Y2]
-            ) {
-                return a.Num;
-            }
-        }
-
-        return null;
     }
 
     public (int xi, int yi) GetElCoordsAtPoint(Real x, Real y)

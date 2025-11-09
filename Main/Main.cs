@@ -8,9 +8,11 @@ using System.Globalization;
 using System.Diagnostics;
 
 using SparkCL;
-using SlaeBuilder;
+using FemSlaeBuilder;
 using SparkAlgos.SlaeSolver;
 using SlaeSolver;
+using CoordSystem.Dim2;
+using TelmaCore;
 
 class Program
 {
@@ -28,11 +30,12 @@ class Program
         Core.Init();
         Trace.WriteLine($"SparkCL Init: {sw.ElapsedMilliseconds}ms");
 
-        ElectroMany();
-
+        ReverseSigma();
         return;
-        Reverse();
+        ElectroMany();
+        Spline();
 
+        Iterate();
 
         var e = ElectroOnce(7);
         Console.WriteLine(
@@ -45,55 +48,91 @@ class Program
         );
     }
     
-    static void Reverse()
+    static void Spline()
     {
+        var task = new TaskRect4x5XY1();
+        var prob = new ProblemLine(task, SRC_DIR + "InputRect4x5");
+
+        prob.Build<DiagSlaeBuilder<XY>>();
+
+        var vals = SolveOCL<BicgStabOCL>(prob);
+
+        var splineProb = new ProblemSpline(SRC_DIR + "InputSpline", vals, prob.Mesh);
+        splineProb.Build<SplineSlaeBuilder.DiagSlaeBuilderHermit<XY>>();
+        
+        SplineSolveOCL<BicgStabOCL>(splineProb);
+    }
+    
+    static void SplineSolveOCL<T>(ProblemSpline prob)
+    where T: SparkAlgos.SlaeSolver.ISlaeSolver
+    {
+        var (ans, iters, rr) = prob.SolveOCL<T>();
+        
+        Console.WriteLine($"(iters {iters}) (discrep: {rr})");
+    }
+    
+    static void ReverseI()
+    {
+        // TODO: дописать
         // u -> e
-        Real[] w = [1, 1, 1, 1];
-        Real[] e_measured = [37e-3, 18e-3, 12e-3, 8e-3];
-        Real u_guide = 6; // 7
-        Real[] e_true = [
-            0.03757434500495688,
-            0.01803733811906942,
-            0.0117831743630933,
-            0.008658142365752039
+        Real[] weights = [1, 1, 1, 1];
+        // измеренные напряжённости, с какой-то погрешностью
+        PairF64[] e_measured = [
+            new(3.710883057100038e-07, -4.652739107054252e-08),
+            new(1.046909531845134e-07, -6.388825590065409e-09),
+            new(4.878075851331915e-08, -1.811845815180536e-09),
+            new(2.858623606945764e-08, -7.38675306794607e-10)
         ];
-        e_measured = e_true;
-        Real alpha = 0.01;
+        // начальное значение проводимости
+        Real u_guide = 6.5; // 6
+        // истинные напряжённости
+        PairF64[] e_true = [
+            new(3.710883057100038e-07, -4.652739107054252e-08),
+            new(1.046909531845134e-07, -6.388825590065409e-09),
+            new(4.878075851331915e-08, -1.811845815180536e-09),
+            new(2.858623606945764e-08, -7.38675306794607e-10)
+        ];
+        // e_measured = e_true;
+        Real alpha = 0;
         
         Real j0 = 0;
         var e0 = ElectroOnce(u_guide);
         for (int i = 0; i < 4; i++)
         {
-            j0 += w[i]*w[i] * (e_measured[i] - e0[i]) * (e_measured[i] - e0[i]);
+            var w = (e_measured[i] - e0[i]) * weights[i] / e_measured[i].Norm;
+            j0 += w*w;
         }
         
         Console.WriteLine($"j0: {j0}");
         
         Real beta = 1;
         Real u0 = u_guide;
-        
+
+        int iter = 0;
         while (true)
         {
             // дифференциал
-            var diffU = new Real[4];
+            var diffU = new PairF64[4];
             var e1 = ElectroOnce(1.05*u0);
             for (int i = 0; i < 4; i++)
             {  
-                diffU[i] = (e1[i]-e0[i])/(0.05*u0);
+                diffU[i] = (e0[i]-e1[i])/(0.05*u0);
             }
             
             // A
             Real a = alpha;
             for (int i = 0; i < 4; i++)
             {
-                a += w[i]*w[i] * diffU[i]*diffU[i];
+                var w = weights[i] / e_measured[i].Norm;
+                a += w*w * diffU[i]*diffU[i];
             }
             
             // f
             Real f = -alpha * (u0 - u_guide);
             for (int i = 0; i < 4; i++)
             {
-                f -= w[i]*w[i] * (e_measured[i] - e0[i])  * diffU[i];
+                var w = weights[i] / e_measured[i].Norm;
+                f -= w*w * (e_measured[i] - e0[i]) * diffU[i];
             }
             
             // новое решение
@@ -105,12 +144,14 @@ class Program
             e0 = ElectroOnce(u0);
             for (int i = 0; i < 4; i++)
             {
-                j1 += w[i]*w[i] * (e_measured[i] - e0[i]) * (e_measured[i] - e0[i]);
+                var w = (e_measured[i] - e0[i]) * weights[i] / e_measured[i].Norm;
+                j1 += w*w;
             }
-            
+
+            iter++;
             if (j0 < j1) {
-                beta /= 2;
-                if (beta < 1e-7) {
+                beta /= 2.0;
+                if (beta < 1.0/4.0) {
                     break;
                 }
             }
@@ -120,26 +161,121 @@ class Program
             
             j0 = j1;
         }
+        
+        Console.WriteLine($"Iterations: {iter}");
     }
     
-    static Real[] ElectroOnce(Real sigma)
+    static void ReverseSigma()
+    {
+        // u -> e
+        Real[] weights = [1, 1, 1, 1];
+        // измеренные напряжённости, с какой-то погрешностью
+        PairF64[] e_measured = [
+            new(3.710883057100038e-07, -4.652739107054252e-08),
+            new(1.046909531845134e-07, -6.388825590065409e-09),
+            new(4.878075851331915e-08, -1.811845815180536e-09),
+            new(2.858623606945764e-08, -7.38675306794607e-10)
+        ];
+        // начальное значение проводимости
+        Real u_guide = 6.5; // 6
+        // истинные напряжённости
+        PairF64[] e_true = [
+            new(3.710883057100038e-07, -4.652739107054252e-08),
+            new(1.046909531845134e-07, -6.388825590065409e-09),
+            new(4.878075851331915e-08, -1.811845815180536e-09),
+            new(2.858623606945764e-08, -7.38675306794607e-10)
+        ];
+        // e_measured = e_true;
+        Real alpha = 0;
+        
+        Real j0 = 0;
+        var e0 = ElectroOnce(u_guide);
+        for (int i = 0; i < 4; i++)
+        {
+            var w = (e_measured[i] - e0[i]) * weights[i] / e_measured[i].Norm;
+            j0 += w*w;
+        }
+        
+        Console.WriteLine($"j0: {j0}");
+        
+        Real beta = 1;
+        Real u0 = u_guide;
+
+        int iter = 0;
+        while (true)
+        {
+            // дифференциал
+            var diffU = new PairF64[4];
+            var e1 = ElectroOnce(1.05*u0);
+            for (int i = 0; i < 4; i++)
+            {  
+                diffU[i] = (e0[i]-e1[i])/(0.05*u0);
+            }
+            
+            // A
+            Real a = alpha;
+            for (int i = 0; i < 4; i++)
+            {
+                var w = weights[i] / e_measured[i].Norm;
+                a += w*w * diffU[i]*diffU[i];
+            }
+            
+            // f
+            Real f = -alpha * (u0 - u_guide);
+            for (int i = 0; i < 4; i++)
+            {
+                var w = weights[i] / e_measured[i].Norm;
+                f -= w*w * (e_measured[i] - e0[i]) * diffU[i];
+            }
+            
+            // новое решение
+            var du = f/a;
+            u0 += beta * du;
+            
+            // новое значение функционала
+            Real j1 = 0;
+            e0 = ElectroOnce(u0);
+            for (int i = 0; i < 4; i++)
+            {
+                var w = (e_measured[i] - e0[i]) * weights[i] / e_measured[i].Norm;
+                j1 += w*w;
+            }
+
+            iter++;
+            if (j0 < j1) {
+                beta /= 2.0;
+                if (beta < 1.0/4.0) {
+                    break;
+                }
+            }
+            
+            Console.WriteLine($"sigma: {u0}");
+            Console.WriteLine($"j: {j1}");
+            
+            j0 = j1;
+        }
+        
+        Console.WriteLine($"Iterations: {iter}");
+    }
+    
+    static PairF64[] ElectroOnce(Real sigma)
     {
         var task = new TaskElectro();
         task.Sigma = sigma;
         var prob = new ProblemLine(task, SRC_DIR + "InputElectro");
         
-        prob.MeshRefine(new()
-        {
-            XSplitCount   = [  8,   8,   8,   8, 120],
-            XStretchRatio = [1.0, 1.0, 1.0, 1.0, 1.0],
-            YSplitCount   = [120,   8],
-            YStretchRatio = [1.0, 1.0],
-        });
+        // prob.MeshRefine(new()
+        // {
+        //     XSplitCount   = [  8,   8,   8,   8, 120],
+        //     XStretchRatio = [1.0, 1.0, 1.0, 1.0, 1.0],
+        //     YSplitCount   = [120,   8],
+        //     YStretchRatio = [1.0, 1.0],
+        // });
         
         prob.buildType = GlobalMatrixImplType.Host;
-        prob.Build<DiagSlaeBuilder>();
+        prob.Build<DiagSlaeBuilder<RZ>>();
         // ElectroSolveHost<CgmHost>(prob);
-        return ElectroSolveOCL<CgmOCL>(prob);
+        return ElectroSolveOCL<BicgStabOCL>(prob);
     }
     
     static void ElectroMany()
@@ -152,9 +288,9 @@ class Program
         for (int i = 0; i < REFINE_COUNT; i++)
         {
             prob.buildType = GlobalMatrixImplType.Host;
-            prob.Build<DiagSlaeBuilder>();
+            prob.Build<DiagSlaeBuilder<RZ>>();
             // ElectroSolveHost<CgmHost>(prob);
-            var sens = ElectroSolveOCL<CgmOCL>(prob);
+            var sens = ElectroSolveOCL<BicgStabOCL>(prob);
 
             for (int k = 0; k < sens.Length; k++)
             {
@@ -165,7 +301,7 @@ class Program
         }
     }
     
-    static Real[] ElectroSolveOCL<T>(ProblemLine prob)
+    static PairF64[] ElectroSolveOCL<T>(ProblemLine prob)
     where T: SparkAlgos.SlaeSolver.ISlaeSolver
     {
         var (ans, iters, rr) = prob.SolveOCL<T>();
@@ -173,18 +309,16 @@ class Program
         Console.WriteLine($"(iters {iters}) (discrep: {rr})");
 
         // sensors
-        int[] sensIdx = [
-            prob.Mesh.GetDofAtInitNode(1, 2),
-            prob.Mesh.GetDofAtInitNode(2, 2),
-            prob.Mesh.GetDofAtInitNode(3, 2),
-            prob.Mesh.GetDofAtInitNode(4, 2)
-        ];
+        Real[] sensR = [250, 500, 750, 1000];
         
-        var sensVals = new Real[4];
-
-        for (int i = 0; i < sensIdx.Length; i++)
+        var sensVals = new PairF64[4];
+        var res = new Real[4];
+        var resNew = new Real[4];
+        for (int i = 0; i < sensR.Length; i++)
         {
-            sensVals[i] = ans[sensIdx[i]];
+            sensVals[i] = -prob.GradAt(ans, sensR[i], 0);
+            res[i] = prob.ResultAt(ans, sensR[i], 0);
+            resNew[i] = prob.ResultAtNew(ans, sensR[i], 0);
         }
         return sensVals;
     }
@@ -197,16 +331,12 @@ class Program
         Console.WriteLine($"(iters {iters}) (discrep: {rr})");
 
         // sensors
-        int[] sensIdx = [
-            prob.Mesh.GetDofAtInitNode(1, 2),
-            prob.Mesh.GetDofAtInitNode(2, 2),
-            prob.Mesh.GetDofAtInitNode(3, 2),
-            prob.Mesh.GetDofAtInitNode(4, 2)
-        ];
+        Real[] sensR = [250, 500, 750, 1000];
 
-        for (int i = 0; i < sensIdx.Length; i++)
+        for (int i = 0; i < sensR.Length; i++)
         {
-            var res = ans[sensIdx[i]];
+            // var res = ans[sensIdx[i]];
+            var res = prob.ResultAt(ans, sensR[i], 0);
             Console.WriteLine($"Sensor {i+1}: {res}");
         }
 
@@ -217,7 +347,7 @@ class Program
     {
         const int REFINE_COUNT = 3;
 
-        var task = new TaskRect4x5RZ();
+        var task = new TaskRect4x5RZ2();
         var prob = new ProblemLine(task, SRC_DIR + "InputRect4x5");
 
         // prob.MeshRefine(new()
@@ -231,14 +361,14 @@ class Program
         for (int i = 0; i < REFINE_COUNT; i++)
         {
             prob.buildType = GlobalMatrixImplType.Host;
-            prob.Build<DiagSlaeBuilder>();
+            prob.Build<DiagSlaeBuilder<RZ>>();
             SolveOCL<BicgStabOCL>(prob);
 
             prob.MeshDouble();
         }
     }
     
-    static void SolveOCL<T>(ProblemLine prob)
+    static Real[] SolveOCL<T>(ProblemLine prob)
     where T: SparkAlgos.SlaeSolver.ISlaeSolver
     {
         Trace.WriteLine("SolveOCL");
@@ -262,5 +392,7 @@ class Program
         Trace.Write($": {kernTime}мс + {ioTime}мс");
 #endif
         Trace.WriteLine("");
+
+        return ans;
     }
 }

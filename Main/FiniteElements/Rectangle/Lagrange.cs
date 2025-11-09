@@ -2,6 +2,7 @@ using Real = double;
 
 using TelmaCore;
 using static Quadrature.Gauss;
+using CoordSystem.Dim2;
 
 namespace FiniteElements.Rectangle.Lagrange;
 
@@ -35,7 +36,8 @@ public static class BiLinear
         }
     };
     
-    public static Real[,] ComputeLocal(TaskFuncs funcs, PairF64 p0, PairF64 p1, int subDom)
+    public static Real[,] ComputeLocal<Tc>(TaskFuncs funcs, PairF64 p0, PairF64 p1, int subDom)
+    where Tc : ICoordSystem
     {
         var values = new Real[4, 4];
 
@@ -54,7 +56,7 @@ public static class BiLinear
                     return funcs.Gamma(subDom, point.X, point.Y)
                         * Basis[i](p01)
                         * Basis[j](p01)
-                        * point.X;
+                        * Tc.Jacobian(point.X, point.Y);
                 };
                 
                 values[i, j] = Integrate2DOrder5(p0, p1, funcMass);
@@ -74,7 +76,7 @@ public static class BiLinear
                             BasisGrad[i, 1](p01)
                             * BasisGrad[j, 1](p01) / ph.Y / ph.Y
                         )
-                        * point.X;
+                        * Tc.Jacobian(point.X, point.Y);
                 };
                 
                 values[i, j] += Integrate2DOrder5(p0, p1, funcStiffness);
@@ -84,7 +86,8 @@ public static class BiLinear
         return values;
     }
     
-    public static Real[] ComputeLocalB(TaskFuncs funcs, PairF64 p0, PairF64 p1, int subDom)
+    public static Real[] ComputeLocalB<Tc>(TaskFuncs funcs, PairF64 p0, PairF64 p1, int subDom)
+    where Tc : ICoordSystem
     {
         var ph = p1 - p0;
         var res = new Real[4];
@@ -94,13 +97,13 @@ public static class BiLinear
             var func = (PairF64 point) =>
             {
                 // в координатах шаблонного базиса - [0;1]
-                var p01 = new PairF64 (
+                var p01 = new PairF64(
                     (point.X - p0.X) / ph.X,
                     (point.Y - p0.Y) / ph.Y
                 );
                 return funcs.F(subDom, point.X, point.Y)
                     * Basis[i](p01)
-                    * point.X;
+                    * Tc.Jacobian(point.X, point.Y);
             };
             res[i] = Integrate2DOrder5(p0, p1, func);
         }

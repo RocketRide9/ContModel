@@ -11,7 +11,7 @@ public class MsrMatrix : IMatrix
 {
     public Real[] Elems = [];
     public Real[] Di = [];
-    public int[] Ia = [];
+    public int[] Ia = [0];
     public int[] Ja = [];
 
     public int Size => Di.Length;

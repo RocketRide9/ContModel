@@ -9,7 +9,7 @@ using Dim1 = FiniteElements.Line.Lagrange.Linear;
 using static Quadrature.Gauss;
 using TelmaCore;
 
-namespace SlaeBuilder;
+namespace FemSlaeBuilder;
 
 class PatchVectorHAligned : IPatchVector
 {
@@ -31,26 +31,27 @@ interface IPatchMatrix
     Real[,] Values { get; init; } 
 }
 
-class DiagSlaeBuilder : ISlaeBuilder
+class DiagSlaeBuilder<Tc> : IFemSlaeBuilder
+where Tc : CoordSystem.Dim2.ICoordSystem
 {
     Diag9Matrix _matrix;
     Real[] _b = [];
 
-    readonly RectMesh _mesh;
-    public RectMesh Mesh { get => _mesh; }
+    readonly FemRectMesh _mesh;
+    public FemRectMesh Mesh { get => _mesh; }
     public GlobalMatrixImplType GlobalMatrixImpl { get; set; } = GlobalMatrixImplType.Host;
 
     readonly TaskFuncs _funcs;
 
-    public DiagSlaeBuilder(RectMesh mesh, TaskFuncs funcs)
+    public DiagSlaeBuilder(FemRectMesh mesh, TaskFuncs funcs)
     {
         _mesh = mesh;
         _matrix = new Diag9Matrix();
         _funcs = funcs;
     }
 
-    public static ISlaeBuilder Construct(RectMesh mesh, TaskFuncs funcs)
-        => new DiagSlaeBuilder(mesh, funcs);
+    public static IFemSlaeBuilder Construct(FemRectMesh mesh, TaskFuncs funcs)
+        => new DiagSlaeBuilder<Tc>(mesh, funcs);
 
     public (IMatrix, Real[]) Build()
     {
@@ -72,9 +73,15 @@ class DiagSlaeBuilder : ISlaeBuilder
 
         // HACK: Добавка в правую часть от точечного источника
         var idx = _mesh.GetDofAtInitNode(0, 2);
-        _b[idx] += 5;
+        _b[idx] += 1 / (2 * Math.PI);
 
         return (_matrix, _b);
+    }
+    
+    void GlobalMatrixPortraitCompose()
+    {
+        // в случае диагональной матрицы это просто Gap
+        _matrix.Gap = _mesh.X.Length - 2;
     }
 
     void GlobalMatrixInit()
@@ -219,7 +226,7 @@ class DiagSlaeBuilder : ISlaeBuilder
                 n[0] = yi * _mesh.X.Length + xi1;
                 n[1] = (yi + 1) * _mesh.X.Length + xi2;
                 
-                for (int i = 0; i < Dim1.LagrangeBasis.Length; i++)
+                for (int i = 0; i < Dim1.Basis.Length; i++)
                 {
                     _b[n[i]] += Integrate1DOrder5(y0, y1, 
                         y =>
@@ -227,8 +234,8 @@ class DiagSlaeBuilder : ISlaeBuilder
                             // в координатах шаблонного базиса - [0;1]
                             var y01 = (y - y0) / hy;
                             return _funcs.Theta(num, x, y)
-                                * Dim1.LagrangeBasis[i](y01)
-                                * x;
+                                * Dim1.Basis[i](y01)
+                                * Tc.Jacobian(x, y);
                         }
                     );
                 }
@@ -249,7 +256,7 @@ class DiagSlaeBuilder : ISlaeBuilder
                     yi2 * _mesh.X.Length + xi + 1    
                 ];
 
-                for (int i = 0; i < Dim1.LagrangeBasis.Length; i++)
+                for (int i = 0; i < Dim1.Basis.Length; i++)
                 {
                     _b[n[i]] += Integrate1DOrder5(x0, x1, 
                         x =>
@@ -257,8 +264,8 @@ class DiagSlaeBuilder : ISlaeBuilder
                             // в координатах шаблонного базиса - [0;1]
                             var x01 = (x - x0) / hx;
                             return _funcs.Theta(num, x, y)
-                                * Dim1.LagrangeBasis[i](x01)
-                                * x;
+                                * Dim1.Basis[i](x01)
+                                * Tc.Jacobian(x, y);
                         }
                     );
                     
@@ -422,9 +429,9 @@ class DiagSlaeBuilder : ISlaeBuilder
 
                 var hy = _mesh.Y[yi + 1] - _mesh.Y[yi];
 
-                for (int i = 0; i < Dim1.LagrangeBasis.Length; i++)
+                for (int i = 0; i < Dim1.Basis.Length; i++)
                 {
-                    for (int j = 0; j < Dim1.LagrangeBasis.Length; j++)
+                    for (int j = 0; j < Dim1.Basis.Length; j++)
                     {
                         localA[i, j] = Integrate1DOrder5(y0, y1,
                             y =>
@@ -432,15 +439,15 @@ class DiagSlaeBuilder : ISlaeBuilder
                                 // в координатах шаблонного базиса - [0;1]
                                 var y01 = (y - y0) / hy;
                                 return _funcs.Beta(num)
-                                    * Dim1.LagrangeBasis[i](y01)
-                                    * Dim1.LagrangeBasis[j](y01)
-                                    * x;
+                                    * Dim1.Basis[i](y01)
+                                    * Dim1.Basis[j](y01)
+                                    * Tc.Jacobian(x, y);
                             }
                         );
                     }
                 }
 
-                for (int i = 0; i < Dim1.LagrangeBasis.Length; i++)
+                for (int i = 0; i < Dim1.Basis.Length; i++)
                 {
                     localB[i] = Integrate1DOrder5(y0, y1, 
                         y =>
@@ -449,8 +456,8 @@ class DiagSlaeBuilder : ISlaeBuilder
                             var y01 = (y - y0) / hy;
                             return _funcs.Beta(num)
                                 * _funcs.uBeta(num, x, y)
-                                * Dim1.LagrangeBasis[i](y01)
-                                * x;
+                                * Dim1.Basis[i](y01)
+                                * Tc.Jacobian(x, y);
                         }
                     );
                 }
@@ -482,9 +489,9 @@ class DiagSlaeBuilder : ISlaeBuilder
 
                 var hx = _mesh.X[xi + 1] - _mesh.X[xi];
 
-                for (int i = 0; i < Dim1.LagrangeBasis.Length; i++)
+                for (int i = 0; i < Dim1.Basis.Length; i++)
                 {
-                    for (int j = 0; j < Dim1.LagrangeBasis.Length; j++)
+                    for (int j = 0; j < Dim1.Basis.Length; j++)
                     {
                         localA[i, j] = Integrate1DOrder5(x0, x1,
                             x =>
@@ -492,15 +499,15 @@ class DiagSlaeBuilder : ISlaeBuilder
                                 // в координатах шаблонного базиса - [0;1]
                                 var x01 = (x - x0) / hx;
                                 return _funcs.Beta(num)
-                                    * Dim1.LagrangeBasis[i](x01)
-                                    * Dim1.LagrangeBasis[j](x01)
+                                    * Dim1.Basis[i](x01)
+                                    * Dim1.Basis[j](x01)
                                     * x;
                             }
                         );
                     }
                 }
 
-                for (int i = 0; i < Dim1.LagrangeBasis.Length; i++)
+                for (int i = 0; i < Dim1.Basis.Length; i++)
                 {
                     localB[i] = Integrate1DOrder5(x0, x1,
                         x =>
@@ -509,7 +516,7 @@ class DiagSlaeBuilder : ISlaeBuilder
                             var x01 = (x - x0) / hx;
                             return _funcs.Beta(num)
                                 * _funcs.uBeta(num, x, y)
-                                * Dim1.LagrangeBasis[i](x01)
+                                * Dim1.Basis[i](x01)
                                 * x;
                         }
                     );
@@ -572,12 +579,6 @@ class DiagSlaeBuilder : ISlaeBuilder
         }
     }
 
-    void GlobalMatrixPortraitCompose()
-    {
-        // в случае диагональной матрицы это просто Gap
-        _matrix.Gap = _mesh.X.Length - 2;
-    }
-
     void GlobalMatrixBuild()
     {
         switch (GlobalMatrixImpl)
@@ -602,7 +603,7 @@ class DiagSlaeBuilder : ISlaeBuilder
                 PairF64 p0 = new(_mesh.X[xi], _mesh.Y[yi]);
                 PairF64 p1 = new(_mesh.X[xi + 1], _mesh.Y[yi + 1]);
                 
-                var local = Dim2.ComputeLocal(_funcs, p0, p1, subDom.Value);
+                var local = Dim2.ComputeLocal<Tc>(_funcs, p0, p1, subDom.Value);
 
                 int a = yi * _mesh.X.Length + xi;
 
@@ -627,7 +628,7 @@ class DiagSlaeBuilder : ISlaeBuilder
 
                 _matrix.Di[a2 + 1] += local[3, 3];
 
-                var localB = Dim2.ComputeLocalB(_funcs, p0, p1, subDom.Value);
+                var localB = Dim2.ComputeLocalB<Tc>(_funcs, p0, p1, subDom.Value);
 
                 _b[a] += localB[0];
                 _b[a + 1] += localB[1];

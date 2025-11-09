@@ -4,13 +4,13 @@ using System.Numerics;
 
 using Types;
 
-namespace SlaeBuilder;
+namespace FemSlaeBuilder;
 
-public interface ISlaeBuilder
+public interface IFemSlaeBuilder
 {
-    RectMesh Mesh { get; }
+    FemRectMesh Mesh { get; }
     GlobalMatrixImplType GlobalMatrixImpl { get; set; }
-    static abstract ISlaeBuilder Construct(RectMesh mesh, TaskFuncs funcs);
+    static abstract IFemSlaeBuilder Construct(FemRectMesh mesh, TaskFuncs funcs);
     (IMatrix, Real[]) Build();
 }
 

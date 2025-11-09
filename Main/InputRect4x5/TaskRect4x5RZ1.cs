@@ -1,14 +1,14 @@
 using Real = double;
 
-class TaskRect4x5RZ : TaskFuncs
+class TaskRect4x5RZ1 : TaskFuncs
 {
-    public string Description => "Прямоугольник 4на5 в цилиндрических координатах";
+    public string Description => "Прямоугольник 4на5 в цилиндрических координатах, полинов второй степени";
 
     public Real Answer(int subdom, Real r, Real z)
     {
         return subdom switch
         {
-            0 => r*r + z*z,
+            0 => r + z,
             _ => throw new ArgumentException("Неверный номер подобласти"),
         };
     }
@@ -28,7 +28,7 @@ class TaskRect4x5RZ : TaskFuncs
     {
         return subdom switch
         {
-            0 => r*r + z*z - 3.0,
+            0 => r + z - (Real)(1.0/2.0/r),
             _ => throw new ArgumentException("Неверный номер граничного условия"),
         };
     }
@@ -55,8 +55,8 @@ class TaskRect4x5RZ : TaskFuncs
     {
         return bcNum switch
         {
-            0 => 4,
-            1 => -1,
+            0 => 1 * Lambda(0, r, z),
+            1 => -1 * Lambda(0, r, z),
             _ => throw new ArgumentException("Некорректный номер условия"),
         };
     }
@@ -65,9 +65,7 @@ class TaskRect4x5RZ : TaskFuncs
     {
         return bcNum switch
         {
-            0 => 2*z + Answer(0, r, z),
-            1 => -2*r + Answer(0, r, z),
-            2 => 2*r + Answer(0, r, z),
+            0 => 1 + Answer(0, r, z),
             _ => throw new ArgumentException("Некорректный номер условия"),
         };
     }

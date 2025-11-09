@@ -8,18 +8,20 @@ using System.Text.Json;
 using System.Text.Unicode;
 using System.Diagnostics;
 
-using SlaeBuilder;
+using FemSlaeBuilder;
 using Types;
+using TelmaCore;
 using static FiniteElements.Rectangle.Lagrange.BiLinear;
 
 class ProblemLine {
     TaskFuncs _funcs;
-    ProblemParams _problemParams;
-    public ProblemParams ProblemParams { get => _problemParams; }
+    SolverParams _problemParams;
+    public SolverParams ProblemParams { get => _problemParams; }
     RefineParams _refineParams;
-    public RectMesh Mesh { get => _mesh; }
-    RectMesh _mesh;
-    ComputationalDomain _computationalDomain;
+    public FemRectMesh Mesh { get => _mesh; }
+    FemRectMesh _mesh;
+    MeshAxes _meshAxes;
+    Subdomain[] _subDomains;
     BoundaryCondition[] _boundaryConditions;
 
     public IMatrix matrix;
@@ -27,18 +29,21 @@ class ProblemLine {
     public GlobalMatrixImplType buildType = GlobalMatrixImplType.Host;
 
     // folder - директория с условиями задачи
-    public ProblemLine(TaskFuncs taskFunctions, string taskFolder, GlobalMatrixImplType buildType = GlobalMatrixImplType.Host)
-    {
+    public ProblemLine(
+        TaskFuncs taskFunctions,
+        string taskFolder,
+        GlobalMatrixImplType buildType = GlobalMatrixImplType.Host
+    ) {
         _funcs = taskFunctions;
 
         var options = new JsonSerializerOptions()
         {
             Encoder = System.Text.Encodings.Web.JavaScriptEncoder.Create(UnicodeRanges.All),
-            TypeInfoResolver = ProblemParamsSourceGenerationContext.Default
+            TypeInfoResolver = SolverParamsSourceGenerationContext.Default
         };
         
         var json = File.ReadAllText("ProblemParams.json");
-        _problemParams = JsonSerializer.Deserialize<ProblemParams>(json, options)!;
+        _problemParams = JsonSerializer.Deserialize<SolverParams>(json, options)!;
 
         options = new JsonSerializerOptions()
         {
@@ -48,19 +53,20 @@ class ProblemLine {
 
         json = File.ReadAllText(Path.Combine(taskFolder, "RefineParams.json"));
         _refineParams = JsonSerializer.Deserialize<RefineParams>(json, options)!;
-        if (_refineParams.XSplitCount.Sum() <= 1)
-        {
-            throw new Exception("Диагональный формат хранения матрицы накладывает ограничение на " +
-                "минимальный размер сетки по оси x");
-        }
+        // if (_refineParams.XSplitCount.Sum() <= 1)
+        // {
+        //     throw new Exception("Диагональный формат хранения матрицы накладывает ограничение на " +
+        //         "минимальный размер сетки по оси x");
+        // }
 
-        _computationalDomain = ReadDomains(taskFolder);
+        _meshAxes = ReadMesh(taskFolder);
+        _subDomains = ReadSubDomains(taskFolder);
         _boundaryConditions = ReadConditions(taskFolder);
 
-        _mesh = new RectMesh(
-            _computationalDomain.xAxis,
-            _computationalDomain.yAxis,
-            _computationalDomain.subDomains,
+        _mesh = new FemRectMesh(
+            _meshAxes.xAxis,
+            _meshAxes.yAxis,
+            _subDomains,
             _boundaryConditions
         );
 
@@ -69,7 +75,7 @@ class ProblemLine {
     }
     
     public void Build<T>()
-    where T: ISlaeBuilder
+    where T: IFemSlaeBuilder
     {
         var sw = Stopwatch.StartNew();
         var slaeBuilder = T.Construct(_mesh, _funcs);
@@ -128,6 +134,86 @@ class ProblemLine {
                     + q[m[2]] * (X[xi + 1] - x) * (y - Y[yi])
                     + q[m[3]] * (x - X[xi])     * (y - Y[yi])
                 ) / hx / hy;
+        }
+        return result;
+    }
+    
+    public PairF64 GradAt(Span<Real> q, Real x, Real y)
+    {
+        var X = _mesh.X;
+        var Y = _mesh.Y;
+        PairF64 result = new(0, 0);
+
+        var (xi, yi) = _mesh.GetElCoordsAtPoint(x, y);
+
+        Real hx = X[xi + 1] - X[xi];
+        Real hy = Y[yi + 1] - Y[yi];
+
+        var subdom = _mesh.GetSubdomNumAtElCoords(xi, yi);
+        if (subdom.HasValue)
+        {
+            Span<int> m = stackalloc int[4];
+            m[0] = yi * X.Length + xi;
+            m[1] = m[0] + 1;
+            m[2] = (yi + 1) * X.Length + xi;
+            m[3] = m[2] + 1;
+
+            var p01 = new PairF64(
+                (x - X[xi]) / hx,
+                (y - Y[yi]) / hy
+            );
+
+            result = new (
+                q[m[0]] * BasisGrad[0, 0](p01)
+                + q[m[1]] * BasisGrad[1, 0](p01)
+                + q[m[2]] * BasisGrad[2, 0](p01)
+                + q[m[3]] * BasisGrad[3, 0](p01)
+                ,
+                q[m[0]] * BasisGrad[0, 1](p01)
+                + q[m[1]] * BasisGrad[1, 1](p01)
+                + q[m[2]] * BasisGrad[2, 1](p01)
+                + q[m[3]] * BasisGrad[3, 1](p01)
+            );
+            
+            result = new (
+                result.X / hx,
+                result.Y / hy
+            );
+        }
+        return result;
+    }
+    
+    
+    public Real ResultAtNew(Span<Real> q, Real x, Real y)
+    {
+        var X = _mesh.X;
+        var Y = _mesh.Y;
+        Real result = 0;
+
+        var (xi, yi) = _mesh.GetElCoordsAtPoint(x, y);
+
+        Real hx = X[xi + 1] - X[xi];
+        Real hy = Y[yi + 1] - Y[yi];
+
+        var subdom = _mesh.GetSubdomNumAtElCoords(xi, yi);
+        if (subdom.HasValue)
+        {
+            Span<int> m = stackalloc int[4];
+            m[0] = yi * X.Length + xi;
+            m[1] = m[0] + 1;
+            m[2] = (yi + 1) * X.Length + xi;
+            m[3] = m[2] + 1;
+            
+            var p01 = new PairF64(
+                (x - X[xi]) / hx,
+                (y - Y[yi]) / hy
+            );
+
+            result =
+                q[m[0]] * Basis[0](p01) 
+                + q[m[1]] * Basis[1](p01)
+                + q[m[2]] * Basis[2](p01)
+                + q[m[3]] * Basis[3](p01);
         }
         return result;
     }
@@ -216,21 +302,32 @@ class ProblemLine {
         return (x0, iter, rr);
     }
 
-    static ComputationalDomain ReadDomains(string taskFolder)
+    static MeshAxes ReadMesh(string taskFolder)
     {
-        var file = new StreamReader(Path.Combine(taskFolder, "ComputationalDomain.txt"));
-        ComputationalDomain res;
+        var file = new StreamReader(Path.Combine(taskFolder, "Mesh.txt"));
 
+        MeshAxes res;
         res.xAxis = file.ReadLine()!.Split().Select(Real.Parse).ToArray();
-
         res.yAxis = file.ReadLine()!.Split().Select(Real.Parse).ToArray();
 
+        return res;
+    }
+    
+    static Subdomain[] ReadSubDomains(string taskFolder)
+    {
+        var file = new StreamReader(Path.Combine(taskFolder, "SubDomains.txt"));
+
         var domains_num = uint.Parse(file.ReadLine()!.Trim());
-        res.subDomains = new Subdomain[domains_num];
+        var res = new Subdomain[domains_num];
         for (int i = 0; i < domains_num; i++)
         {
-            var parts = file.ReadLine()!.Trim().Split().Select(int.Parse).ToArray();
-            res.subDomains[i] = new Subdomain
+            var parts = file
+                .ReadLine()!
+                .Trim()
+                .Split()
+                .Select(int.Parse)
+                .ToArray();
+            res[i] = new Subdomain
             {
                 Num = parts[0] - 1,
                 X1 = parts[1] - 1,
@@ -245,25 +342,24 @@ class ProblemLine {
 
     static BoundaryCondition[] ReadConditions(string taskFolder)
     {
-        var file = new StreamReader(Path.Combine(taskFolder, "BoundaryConditions.txt"));
-
-        var condsNum = uint.Parse(file.ReadLine()!.Trim());
-        var res = new BoundaryCondition[condsNum];
-
-        for (int i = 0; i < condsNum; i++)
+        var options = new JsonSerializerOptions()
         {
-            var numbers = file.ReadLine()!.Trim().Split().Select(int.Parse).ToArray();
-            res[i] = new BoundaryCondition
-            {
-                Num = numbers[0] - 1,
-                Type = numbers[1],
-                X1 = numbers[2] - 1,
-                X2 = numbers[3] - 1,
-                Y1 = numbers[4] - 1,
-                Y2 = numbers[5] - 1,
-            };
+            Encoder = System.Text.Encodings.Web.JavaScriptEncoder.Create(UnicodeRanges.All),
+            TypeInfoResolver = BoundaryConditionsFileSourceGenerationContext.Default
+        };
+        
+        var json = File.ReadAllText(Path.Combine(taskFolder, "BoundaryConditions.json"));
+        var file = JsonSerializer.Deserialize<BoundaryConditionsFile>(json, options)!;
+        
+        for (int i = 0; i < file.BoundaryConditions.Length; i++)
+        {
+            file.BoundaryConditions[i].Num -= 1;
+            file.BoundaryConditions[i].X1 -= 1;
+            file.BoundaryConditions[i].X2 -= 1;
+            file.BoundaryConditions[i].Y1 -= 1;
+            file.BoundaryConditions[i].Y2 -= 1;
         }
-
-        return res;
+        
+        return file.BoundaryConditions;
     }
 }

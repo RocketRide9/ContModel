@@ -14,7 +14,7 @@ class TaskElectro : TaskFuncs
     {
         return subdom switch
         {
-            0 => 6,
+            0 => 5,
             1 => Sigma,
             _ => throw new ArgumentException("Неверный номер области"),
         };

@@ -2,14 +2,14 @@ using Real = double;
 
 using System.Text.Json.Serialization;
 
-[JsonSerializable(typeof(ProblemParams))]
+[JsonSerializable(typeof(SolverParams))]
 [JsonSerializable(typeof(Real))]
 [JsonSerializable(typeof(int))]        
-internal partial class ProblemParamsSourceGenerationContext : JsonSerializerContext
+internal partial class SolverParamsSourceGenerationContext : JsonSerializerContext
 {
 }
 
-public struct ProblemParams
+public struct SolverParams
 {
     public Real eps { get; set; }
     public int maxIter { get; set; }
@@ -41,17 +41,29 @@ public struct RefineParams
     public Real[] YStretchRatio { get; set; }
 }
 
+[JsonSerializable(typeof(int))]
+[JsonSerializable(typeof(BoundaryCondition[]))]        
+[JsonSerializable(typeof(BoundaryConditionsFile))]        
+internal partial class BoundaryConditionsFileSourceGenerationContext
+    : JsonSerializerContext
+{}
+
+public struct BoundaryConditionsFile
+{
+    public BoundaryCondition[] BoundaryConditions { get; set; }
+}
+
 public struct BoundaryCondition
 {
     // в файлах нумерация с 1
     // в программе - с 0
-    public int Num;
+    public int Num { get; set; }
     // тип краевого условия (первый, второй ...) нумеруется с 1
-    public int Type;
-    public int X1;
-    public int X2;
-    public int Y1;
-    public int Y2;
+    public int Type { get; set; }
+    public int X1 { get; set; }
+    public int X2 { get; set; }
+    public int Y1 { get; set; }
+    public int Y2 { get; set; }
 }
 
 #if false
@@ -110,11 +122,10 @@ public struct MsrMatrix
 }
 #endif
 
-public struct ComputationalDomain
+public struct MeshAxes
 {
     public Real[] xAxis;
     public Real[] yAxis;
-    public Subdomain[] subDomains;
 }
 
 interface IElement
@@ -122,4 +133,11 @@ interface IElement
     int NumberOfDofs { get; }
     Real[,] LocalGMatrix (Real hx, Real hy, Real gamma);
     Real[,] LocalMMatrix (Real hx, Real hy, Real gamma);
+}
+
+public struct SplineParams
+{
+    public Real Alpha { get; set; }
+    public Real Beta { get; set; }
+    public Real W { get; set; }
 }

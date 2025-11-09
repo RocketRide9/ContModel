@@ -1,6 +1,6 @@
 using Real = double;
 
-class TaskRect4x5 : TaskFuncs
+class TaskRect4x5Exp : TaskFuncs
 {
     public string Description => "Прямоугольник 4на5 с экспонентой";
 

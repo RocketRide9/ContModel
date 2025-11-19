@@ -30,11 +30,11 @@ class Program
         Core.Init();
         Trace.WriteLine($"SparkCL Init: {sw.ElapsedMilliseconds}ms");
 
+        Spline();
+        return;
         ReverseSigma();
         // ReverseI();
-        return;
         ElectroMany();
-        Spline();
 
         Iterate();
 
@@ -61,15 +61,26 @@ class Program
         var splineProb = new ProblemSpline(SRC_DIR + "InputSpline", vals, prob.Mesh);
         splineProb.Build<SplineSlaeBuilder.DiagSlaeBuilderHermit<XY>>();
         
-        SplineSolveOCL<BicgStabOCL>(splineProb);
+        var res = SplineSolveOCL<BicgStabOCL>(splineProb);
+        
+        Console.WriteLine(
+            string.Join(
+                "\n",
+                res.Select(
+                    (val, idx) => $"{idx}: {val}."
+                )
+            )
+        );
     }
     
-    static void SplineSolveOCL<T>(ProblemSpline prob)
+    static Real[] SplineSolveOCL<T>(ProblemSpline prob)
     where T: SparkAlgos.SlaeSolver.ISlaeSolver
     {
         var (ans, iters, rr) = prob.SolveOCL<T>();
         
         Console.WriteLine($"(iters {iters}) (discrep: {rr})");
+
+        return ans;
     }
     
     static void ReverseI()

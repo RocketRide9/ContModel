@@ -12,7 +12,7 @@ public static class Cubic
     // 16 функций
     public static Func<PairF64, Real> Basis(int i)
     {
-        int mu = 2*((i/4)%2) +i%2;
+        int mu = 2*(i/4%2) + i%2;
         int nu = 2*(i/8) + i/2%2;
 
         return pair
@@ -20,10 +20,10 @@ public static class Cubic
     }
     
     /// xy==0 => diff x
-    /// yx==1 => diff y
+    /// xy==1 => diff y
     public static Func<PairF64, Real> BasisGrad(int i, int xy)
     {
-        int mu = 2*((i/4)%2) +i%2;
+        int mu = 2*(i/4%2) + i%2;
         int nu = 2*(i/8) + i/2%2;
 
         if (xy == 0)

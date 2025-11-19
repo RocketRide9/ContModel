@@ -17,10 +17,12 @@ where Tc : CoordSystem.Dim2.ICoordSystem
     MsrMatrix _matrix;
     Real[] _b = [];
     
+    // сетка, на которой лежат значения _inValues
     readonly RectMesh _inMesh;
     readonly Real[] _inValues;
     
-    readonly RectMesh _mesh;
+    // сетка, на которой строится сплайн
+    readonly RectMesh _splineMesh;
 
     public DiagSlaeBuilderHermit(
         RectMesh inMesh, Real[] inValues,
@@ -28,7 +30,7 @@ where Tc : CoordSystem.Dim2.ICoordSystem
     ) {
         _inMesh = inMesh;
         _inValues = inValues;
-        _mesh = mesh;
+        _splineMesh = mesh;
         _matrix = new MsrMatrix();
     }
 
@@ -73,16 +75,16 @@ where Tc : CoordSystem.Dim2.ICoordSystem
         // (номер элемента, локальный номер узла) -> глобальный номер узла
         int idxOfUnknown(int ielem, int j)
         {
-            int x0 = ielem % (_mesh.X.Length - 1);
-            int y0 = ielem / (_mesh.X.Length - 1);
+            int x0 = ielem % (_splineMesh.X.Length - 1);
+            int y0 = ielem / (_splineMesh.X.Length - 1);
 
             if (j < 8)
             {
-                return y0*_mesh.X.Length*dofsPerNode + x0*dofsPerNode + j;
+                return y0*_splineMesh.X.Length*dofsPerNode + x0*dofsPerNode + j;
             }
             else if (j < 16)
             {
-                return (y0 + 1)*_mesh.X.Length*dofsPerNode + x0*dofsPerNode + (j - dofsPerNode*2);
+                return (y0 + 1)*_splineMesh.X.Length*dofsPerNode + x0*dofsPerNode + (j - dofsPerNode*2);
             }
             else
             {
@@ -90,14 +92,14 @@ where Tc : CoordSystem.Dim2.ICoordSystem
             }
         }
 
-        HashSet<int>[] list = new HashSet<int>[_mesh.nodesCount*dofsPerNode];
+        HashSet<int>[] list = new HashSet<int>[_splineMesh.nodesCount*dofsPerNode];
         for (int i = 0; i < list.Length; i++)
         {
             list[i] = [];
         }
 
         /* цикл по всем конечным элементам */
-        for (int ielem = 0; ielem < _mesh.feCount; ielem++)
+        for (int ielem = 0; ielem < _splineMesh.feCount; ielem++)
         {
             /* цикл по всем узлам данного к.э. */
             for (int idx0 = 0; idx0 < numberOfUnknowns(ielem); idx0++)
@@ -150,6 +152,9 @@ where Tc : CoordSystem.Dim2.ICoordSystem
         {
             for (int j = 0; j < 16; j++)
             {
+                // TODO: наверное где-то здесь нужно базисные функции,
+                // соответствующие производным, делить на сторону конечного
+                // элемента. см. кирпич с.151
                 var val = Dim2.Basis(i)(p) * Dim2.Basis(j)(p);
                 результат[i, j] = w * val;
             }
@@ -170,6 +175,9 @@ where Tc : CoordSystem.Dim2.ICoordSystem
         );
         for (int i = 0; i < 16; i++)
         {
+            // TODO: наверное где-то здесь нужно базисные функции,
+            // соответствующие производным, делить на сторону конечного
+            // элемента. см. кирпич с.151
             результат[i] = w * Dim2.Basis(i)(p) * _inValues[dof];
         }
 
@@ -180,64 +188,71 @@ where Tc : CoordSystem.Dim2.ICoordSystem
     {
         int dofsPerNode = 4;
         
+        // обход по всем сплайнам
         int srcyi0 = 0;
-        for (int yi = 0; yi < _mesh.Y.Length - 1; yi++)
+        for (int yi = 0; yi < _splineMesh.Y.Length - 1; yi++)
         {
             int srcxi0 = 0;
-            for (int xi = 0; xi < _mesh.X.Length - 1; xi++)
+            int srcyi = srcyi0;
+            for (int xi = 0; xi < _splineMesh.X.Length - 1; xi++)
             {
-                PairF64 p0 = new(_mesh.X[xi], _mesh.Y[yi]);
-                PairF64 p1 = new(_mesh.X[xi + 1], _mesh.Y[yi + 1]);
+                PairF64 p0 = new(_splineMesh.X[xi], _splineMesh.Y[yi]);
+                PairF64 p1 = new(_splineMesh.X[xi + 1], _splineMesh.Y[yi + 1]);
 
                 var dofs = new int[16];
-                dofs[0] = yi*_mesh.X.Length*dofsPerNode + xi*dofsPerNode;
-                for (int i = 1; i < 8; i++)
                 {
-                    dofs[i] = dofs[i-1]+1;
-                }
-                dofs[8] = (yi + 1)*_mesh.X.Length*dofsPerNode + xi*dofsPerNode;
-                for (int i = 9; i < 16; i++)
-                {
-                    dofs[i] = dofs[i-1]+1;
+                    dofs[0] = yi*_splineMesh.X.Length*dofsPerNode + xi*dofsPerNode;
+                    for (int i = 1; i < 8; i++)
+                    {
+                        dofs[i] = dofs[i-1]+1;
+                    }
+                    dofs[8] = (yi + 1)*_splineMesh.X.Length*dofsPerNode + xi*dofsPerNode;
+                    for (int i = 9; i < 16; i++)
+                    {
+                        dofs[i] = dofs[i-1]+1;
+                    }   
                 }
                 
-                int srcyi;
-                for (
-                    srcyi = srcyi0;
-                    srcyi < _inMesh.Y.Length && _inMesh.Y[srcyi] <= p1.Y;
-                    srcyi++
-                ) {
-                    int srcxi;
+                // обход по конечным элементам внутри сплайна
+                int srcxi = srcxi0;
+                {
                     for (
-                        srcxi = srcxi0;
-                        srcxi < _inMesh.X.Length && _inMesh.X[srcxi] <= p1.X;
-                        srcxi++
+                        srcyi = srcyi0;
+                        srcyi < _inMesh.Y.Length && _inMesh.Y[srcyi] <= p1.Y;
+                        srcyi++
                     ) {
-                        PairF64 srcp = new(_inMesh.X[srcxi], _inMesh.Y[srcyi]);
-                        var local = ComputeLocal(p0, p1, srcp);
-                        int dof = srcyi * _inMesh.X.Length + srcxi;
-                        var localB = ComputeLocalB(p0, p1, srcp, dof);
-                        
-                        for (int i = 0; i < 16; i++)
-                        {
-                            int a = _matrix.Ia[dofs[i]];
-                            for (int j = 0; j < 16; j++)
+                        for (
+                            srcxi = srcxi0;
+                            srcxi < _inMesh.X.Length && _inMesh.X[srcxi] <= p1.X;
+                            srcxi++
+                        ) {
+                            PairF64 srcp = new(_inMesh.X[srcxi], _inMesh.Y[srcyi]);
+                            var local = ComputeLocal(p0, p1, srcp);
+                            int dof = srcyi * _inMesh.X.Length + srcxi;
+                            var localB = ComputeLocalB(p0, p1, srcp, dof);
+                            
+                            for (int i = 0; i < 16; i++)
                             {
-                                if (i == j)
+                                int a = _matrix.Ia[dofs[i]];
+                                for (int j = 0; j < 16; j++)
                                 {
-                                    _matrix.Di[dofs[i]] = local[i, j];
-                                } else {
-                                    a = LFind(_matrix.Ja, dofs[j], a);
+                                    if (i == j)
+                                    {
+                                        _matrix.Di[dofs[i]] += local[i, j];
+                                    } else {
+                                        a = LFind(_matrix.Ja, dofs[j], a);
+                                        _matrix.Elems[a] += local[i, j];
+                                    }
                                 }
+                                _b[dofs[i]] += localB[i];
                             }
-                            _b[dofs[i]] += localB[i];
                         }
                     }
-                    // сохранение начала 
-                    srcxi0 = srcxi;
                 }
-                srcyi0 = srcyi;
+                // сохранение начала 
+                srcxi0 = srcxi;
             }
+            srcyi0 = srcyi;
         }
 
         /* После сборки матрицы надо нулевые диагональные элементы заменить

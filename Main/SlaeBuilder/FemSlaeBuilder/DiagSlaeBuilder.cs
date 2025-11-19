@@ -72,8 +72,8 @@ where Tc : CoordSystem.Dim2.ICoordSystem
         Trace.Unindent();
 
         // HACK: Добавка в правую часть от точечного источника
-        var idx = _mesh.GetDofAtInitNode(0, 2);
-        _b[idx] += 1 / (2 * Math.PI);
+        // var idx = _mesh.GetDofAtInitNode(0, 2);
+        // _b[idx] += 1 / (2 * Math.PI);
 
         return (_matrix, _b);
     }

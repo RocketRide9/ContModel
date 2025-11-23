@@ -7,7 +7,7 @@ namespace FiniteElements.Line.Hermit;
 
 public static class Cubic
 {
-    public static readonly Func<Real, Real>[] Basis =
+    public static readonly Func<Real, Real>[] BasisTemplate =
     {
         a => 1 - 3*a*a + 2*a*a*a,
         a => a - 2*a*a + a*a*a,
@@ -15,7 +15,17 @@ public static class Cubic
         a => -a*a + a*a*a
     };
     
-    public static readonly Func<Real, Real>[] BasisGrad =
+    public static Real BasisConverted(int i, Real p0, Real p1, Real p)
+    {
+        Real h = p1 - p0;
+        Real p01 = (p - p0)/h;
+        // см. кирпич с.151
+        Real[] coeffs = [1, h, 1, h];
+
+        return coeffs[i] * BasisTemplate[i](p01);
+    }
+    
+    public static readonly Func<Real, Real>[] BasisGradTemplate =
     {
         a => -6*a + 6*a*a,
         a => 1 - 4*a + 3*a*a,

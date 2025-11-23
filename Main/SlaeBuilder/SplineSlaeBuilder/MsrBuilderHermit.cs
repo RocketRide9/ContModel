@@ -143,19 +143,13 @@ where Tc : CoordSystem.Dim2.ICoordSystem
         // TODO: способ задания w извне
         var w = 0.9;
         var результат = new Real[16, 16];
-        var dp = p1 - p0;
-        var p = new PairF64(
-            (srcp.X - p0.X)/dp.X,
-            (srcp.Y - p0.Y)/dp.Y
-        );
+        
         for (int i = 0; i < 16; i++)
         {
             for (int j = 0; j < 16; j++)
             {
-                // TODO: наверное где-то здесь нужно базисные функции,
-                // соответствующие производным, делить на сторону конечного
-                // элемента. см. кирпич с.151
-                var val = Dim2.Basis(i)(p) * Dim2.Basis(j)(p);
+                var val = Dim2.BasisConverted(i, p0, p1, srcp)
+                    * Dim2.BasisConverted(j, p0, p1, srcp);
                 результат[i, j] = w * val;
             }
         }
@@ -168,17 +162,10 @@ where Tc : CoordSystem.Dim2.ICoordSystem
         // TODO: способ задания w извне
         var w = 0.9;
         var результат = new Real[16];
-        var dp = p1 - p0;
-        var p = new PairF64(
-            (srcp.X - p0.X)/dp.X,
-            (srcp.Y - p0.Y)/dp.Y
-        );
+        
         for (int i = 0; i < 16; i++)
         {
-            // TODO: наверное где-то здесь нужно базисные функции,
-            // соответствующие производным, делить на сторону конечного
-            // элемента. см. кирпич с.151
-            результат[i] = w * Dim2.Basis(i)(p) * _inValues[dof];
+            результат[i] = w * Dim2.BasisConverted(i, p0, p1, srcp) * _inValues[dof];
         }
 
         return результат;

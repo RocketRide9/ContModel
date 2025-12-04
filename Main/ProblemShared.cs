@@ -41,6 +41,12 @@ public struct RefineParams
     public Real[] YStretchRatio { get; set; }
 }
 
+public struct RefineParams1D
+{
+    public int[] XSplitCount { get; set; }
+    public Real[] XStretchRatio { get; set; }
+}
+
 [JsonSerializable(typeof(int))]
 [JsonSerializable(typeof(BoundaryCondition[]))]        
 [JsonSerializable(typeof(BoundaryConditionsFile))]        

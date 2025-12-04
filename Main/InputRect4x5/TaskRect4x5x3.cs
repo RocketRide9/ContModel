@@ -1,14 +1,14 @@
 using Real = double;
 
-class TaskRect4x5x2 : TaskFuncs
+class TaskRect4x5x3 : TaskFuncs
 {
-    public string Description => "Прямоугольник 4на5 x^2+y^2";
+    public string Description => "Прямоугольник 4на5 x^3+y^3";
 
     public Real Answer(int subdom, Real x, Real y)
     {
         return subdom switch
         {
-            0 => (Real) x*x + y*y,
+            0 => (Real) x*x*x + y*y*y,
             _ => throw new ArgumentException("Неверный номер подобласти"),
         };
     }
@@ -26,7 +26,7 @@ class TaskRect4x5x2 : TaskFuncs
     {
         return subdom switch
         {
-            0 => (Real)(x*x + y*y - 2),
+            0 => (Real)(x*x*x + y*y*y - 3*(x + y)),
             _ => throw new ArgumentException("Неверный номер граничного условия"),
         };
     }
@@ -53,8 +53,8 @@ class TaskRect4x5x2 : TaskFuncs
     {
         return bcNum switch
         {
-            0 => 4,
-            1 => -1,
+            0 => 3.0/2.0*x*x,
+            1 => -3.0/2.0*x*x,
             _ => throw new ArgumentException("Некорректный номер условия"),
         };
     }
@@ -63,7 +63,7 @@ class TaskRect4x5x2 : TaskFuncs
     {
         return bcNum switch
         {
-            0 => 2*y + x*x + 25,
+            0 => 3*y*y + Answer(0, x, y),
             _ => throw new ArgumentException("Некорректный номер условия"),
         };
     }

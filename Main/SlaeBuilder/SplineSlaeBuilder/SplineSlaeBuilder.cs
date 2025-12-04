@@ -19,3 +19,17 @@ public interface ISplineSlaeBuilder
     );
     (IMatrix matrix, Real[] right) Build();
 }
+
+public interface ISplineSlaeBuilder1D
+{
+    // RectMesh Mesh { get; }
+
+    /// <param name="inMesh">Сетка из решённой задачи</param>
+    /// <param name="inValues">Результат задачи</param>
+    /// <param name="mesh">Сетка для построения сплайна</param>
+    static abstract ISplineSlaeBuilder1D Construct(
+        LineMesh inMesh, Real[] inValues,
+        LineMesh mesh, SplineParams splineParams
+    );
+    (IMatrix matrix, Real[] right) Build();
+}

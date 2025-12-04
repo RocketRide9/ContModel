@@ -48,32 +48,141 @@ class Program
             )
         );
     }
+
+    static (LineMesh, Real[]) CalcDiff(ProblemLine prob, Real[] q)
+    {
+        var basisGrad = FiniteElements.Line.Lagrange.Linear.BasisGrad;
+        
+        var diffs = new Real[prob.Mesh.X.Length - 1];
+        var xLine = new Real[prob.Mesh.X.Length - 1];
+        for (int i = 0; i < diffs.Length; i++)
+        {
+            var p1 = prob.Mesh.X[i+1];
+            var p0 = prob.Mesh.X[i];
+            var h = p1 - p0;
+            xLine[i] = (p1 + p0) / 2;
+            diffs[i] = basisGrad[0](0) * q[i] + basisGrad[1](1) * q[i+1];
+            diffs[i] /= h;
+        }
+
+        return (new LineMesh(xLine), diffs);
+    }
+    
+    static Real SlopeSpline(LineMesh mesh, Real[] splineQ, Real x) {
+        int c = 0;
+        for (; c < mesh.X.Length; c++) {
+            if (mesh.X[c+1] > x) {
+                break;
+            }
+        }
+
+        var x0 = mesh.X[c];
+        var x1 = mesh.X[c+1];
+        Real res = 0;
+        var bas = FiniteElements.Line.Hermit.Cubic.BasisConverted;
+        for (int i = 0; i < 4; i++) {
+            res += bas(i, x0, x1, x) * splineQ[2*c + i];
+        }
+
+        return res;
+    }
+    
+    static Real SlopeReal(Real x) {
+        return 3*x*x;
+    }
+    
+    static Real SlopeAnsInterpol(Real[] mesh, Real[] vals, Real x) {
+        int c = 0;
+        for (; c < mesh.Length; c++) {
+            if (mesh[c+1] > x) {
+                break;
+            }
+        }
+        
+        var x0 = mesh[c];
+        var x1 = mesh[c+1];
+        var h = x1 - x0;
+        var x01 = (x - x0) / h;
+        Real res = (vals[c]*(1 - x01) + vals[c+1]*x01);
+
+        return res;
+    }
     
     static void Spline()
     {
-        var task = new TaskRect4x5XY1();
+        var task = new TaskRect4x5x3();
         var prob = new ProblemLine(task, SRC_DIR + "InputRect4x5");
 
         prob.Build<DiagSlaeBuilder<XY>>();
 
         var vals = SolveOCL<BicgStabOCL>(prob);
 
-        var splineProb = new ProblemSpline(SRC_DIR + "InputSpline", vals, prob.Mesh);
-        splineProb.Build<SplineSlaeBuilder.DiagSlaeBuilderHermit<XY>>();
-        
+        // var meshSlice = new LineMesh((Real[])prob.Mesh.X.Clone());
+
+        var (meshSlice, diffs) = CalcDiff(prob, vals);
+        Console.WriteLine("Исходные значения производной");
+        Console.WriteLine(string.Join(", ", meshSlice.X));
+        Console.WriteLine(string.Join(", ", diffs));
+
+
+        var splineProb = new ProblemSpline1D(SRC_DIR + "InputSpline", diffs, meshSlice);
+        splineProb.Build<SplineSlaeBuilder.MsrSlaeBuilderHermit1D>();
         var res = SplineSolveOCL<BicgStabOCL>(splineProb);
+
+        var splineMesh = splineProb._mesh;
+
+        var meshOld = (Real[])meshSlice.X.Clone();
+        meshSlice.RefineDiv2();
+        meshSlice.RefineDiv2();
+        
+        Real errAns = 0;
+        Real errSpline = 0;
+        for (int i = 0; i < meshSlice.X.Length - 1; i++) {
+            var x = meshSlice.X[i];
+            var real = SlopeReal(x);
+            
+            var v = SlopeAnsInterpol(meshOld, diffs, x);
+            errAns += Math.Abs(real - v);
+            
+            v = SlopeSpline(splineMesh, res, x);
+            errSpline += Math.Abs(real - v);
+        }
+
+        errAns /= meshSlice.X.Length - 1;
+        errSpline /= meshSlice.X.Length - 1;
+
+        Console.WriteLine($"(errAns {errAns}) (errSpline {errSpline})");
         
         Console.WriteLine(
             string.Join(
-                "\n",
+                ",\n",
+                splineProb._mesh.X.Select(
+                    val => $"{val}"
+                )
+            )
+        );
+
+        Console.WriteLine(
+            string.Join(
+                ",\n",
                 res.Select(
-                    (val, idx) => $"{idx}: {val}."
+                    val => $"{val}"
                 )
             )
         );
     }
     
     static Real[] SplineSolveOCL<T>(ProblemSpline prob)
+    where T: SparkAlgos.SlaeSolver.ISlaeSolver
+    {
+        var (ans, iters, rr) = prob.SolveOCL<T>();
+        
+        Console.WriteLine($"(iters {iters}) (discrep: {rr})");
+
+        return ans;
+    }
+    
+    static Real[] SplineSolveOCL<T>(ProblemSpline1D prob)
     where T: SparkAlgos.SlaeSolver.ISlaeSolver
     {
         var (ans, iters, rr) = prob.SolveOCL<T>();

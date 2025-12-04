@@ -47,6 +47,24 @@ public static class Cubic
         }
     }
     
+    /// xy==0 => diff x
+    /// xy==1 => diff y
+    public static Real BasisGradConverted(int i, int xy, PairF64 p0, PairF64 p1, PairF64 p)
+    {
+        throw new NotImplementedException("Not finished");
+        int mu = 2*(i/4%2) + i%2;
+        int nu = 2*(i/8) + i/2%2;
+
+        if (xy == 0)
+        {
+            return Dim1.BasisGradConverted(mu, p0.X, p1.X, p.X) * Dim1.BasisConverted(mu, p0.Y, p1.Y, p.Y);
+        } else if (xy == 1) {
+            return Dim1.BasisConverted(mu, p0.X, p1.X, p.X) * Dim1.BasisGradConverted(mu, p0.Y, p1.Y, p.Y);
+        } else {
+            throw new ArgumentException("Invalid xy argument");
+        }
+    }
+    
     public static Real[,] ComputeLocal<Tc>(TaskFuncs funcs, PairF64 p0, PairF64 p1, int subDom)
     where Tc : ICoordSystem
     {

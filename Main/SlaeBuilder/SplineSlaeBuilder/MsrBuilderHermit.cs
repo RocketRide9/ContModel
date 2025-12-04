@@ -11,7 +11,7 @@ using TelmaCore;
 namespace SplineSlaeBuilder;
 using static FemSlaeBuilder.Shared;
 
-class DiagSlaeBuilderHermit<Tc> : ISplineSlaeBuilder
+class MsrSlaeBuilderHermit<Tc> : ISplineSlaeBuilder
 where Tc : CoordSystem.Dim2.ICoordSystem
 {
     MsrMatrix _matrix;
@@ -24,7 +24,7 @@ where Tc : CoordSystem.Dim2.ICoordSystem
     // сетка, на которой строится сплайн
     readonly RectMesh _splineMesh;
 
-    public DiagSlaeBuilderHermit(
+    public MsrSlaeBuilderHermit(
         RectMesh inMesh, Real[] inValues,
         RectMesh mesh
     ) {
@@ -38,7 +38,7 @@ where Tc : CoordSystem.Dim2.ICoordSystem
         RectMesh inMesh, double[] inValues,
         RectMesh mesh
     ) {
-        return new DiagSlaeBuilderHermit<Tc>(inMesh, inValues, mesh);
+        return new MsrSlaeBuilderHermit<Tc>(inMesh, inValues, mesh);
     }
 
     public (IMatrix matrix, double[] right) Build()

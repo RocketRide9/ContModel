@@ -30,23 +30,17 @@ class CgmHost : ISlaeSolver
     Real _eps;
 
     int _n = 0; // размерность СЛАУ
-    Real[] r;
-    Real[] di_inv;
-    Real[] mr;
-    Real[] az;
-    Real[] z;
+    Real[] r = [];
+    Real[] di_inv = [];
+    Real[] mr = [];
+    Real[] az = [];
+    Real[] z = [];
 
     public CgmHost(int maxIter, Real eps)
     {
         _maxIter = maxIter;
         // TODO: уменьшение eps чтобы точность ответа былв сравнима с BicgStab
         _eps = eps / 1e+7;
-
-        r =      [];
-        di_inv = [];
-        mr =     [];
-        az =     [];
-        z =      [];
     }
 
     public static ISlaeSolver Construct(int maxIter, Real eps)
@@ -68,7 +62,8 @@ class CgmHost : ISlaeSolver
         }
     }
 
-    public (Real discrep, int iter) Solve(Types.IMatrix matrix, Span<Real> b, Span<Real> x)
+    public (Real discrep, int iter) Solve<T>(T matrix, Span<Real> b, Span<Real> x)
+    where T: Types.IMatrix
     {
         AllocateTemps(x.Length);
 
@@ -110,7 +105,7 @@ class CgmHost : ISlaeSolver
             Axpy(-alpha, az, r);
             // 6.
             r.CopyTo(mr);
-            Vmul(di_inv, r);
+            Vmul(mr, di_inv);
             var mrr1 = Dot(mr, r);
             var beta = mrr1/mrr0;
             // 7.

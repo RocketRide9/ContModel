@@ -49,7 +49,7 @@ interface IPatchMatrix
     Real[,] Values { get; init; } 
 }
 
-class DiagSlaeBuilder<Tc> : IFemSlaeBuilder
+public class DiagSlaeBuilder<Tc> : IFemSlaeBuilder
 where Tc : CoordSystem.Dim2.ICoordSystem
 {
     Diag9Matrix _matrix;

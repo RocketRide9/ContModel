@@ -24,7 +24,7 @@ using Types;
 
 namespace Matrices;
 
-public class Diag9Matrix : IMatrix
+public class Diag9Matrix : IHalves
 {
     // Left diagonal
     public Real[] Ld3 = [];
@@ -63,6 +63,76 @@ public class Diag9Matrix : IMatrix
             Rd3 = Rd3,
             Gap = Gap,
         });
+    }
+    
+    /// нижний треугольник на вектор
+    public void LMul(ReadOnlySpan<Real> vec, Span<Real> res) {
+        for (int i = 0; i < Size; i++)
+        {
+            var dot = Di[i] * vec[i];
+            
+            int t = i - 3 - Gap;
+            if (t >= 0) dot += Ld3[t] * vec[t];
+            t = i - 2 - Gap;
+            if (t >= 0) dot += Ld2[t] * vec[t];
+            t = i - 1 - Gap;
+            if (t >= 0) dot += Ld1[t] * vec[t];
+            t = i - 1;
+            if (t >= 0) dot += Ld0[t] * vec[t];
+         
+            res[i] = dot;
+        }
+    }
+    /// верхний треугольник на вектор
+    public void UMul(ReadOnlySpan<Real> vec, Span<Real> res) {
+        for (int i = 0; i < Size; i++)
+        {
+            var dot = Di[i] * vec[i];
+            
+            int t = i+1;
+            if (t < Size && Rd0[i] != 0) dot += Rd0[i] * vec[t];
+            t = i+1+Gap;
+            if (t < Size && Rd1[i] != 0) dot += Rd1[i] * vec[t];
+            t = i+2+Gap;
+            if (t < Size && Rd2[i] != 0) dot += Rd2[i] * vec[t];
+            t = i+3+Gap;
+            if (t < Size && Rd3[i] != 0) dot += Rd3[i] * vec[t];
+            
+            res[i] = dot;
+        }
+    }
+    
+    /// решение L*res=vec
+    public void InvLMul(Span<Real> res) {
+        for (int i = 0; i < Size; i++)
+        {
+            res[i] /= Di[i];
+
+            int t = i + 1;
+            if (t < Size) res[t] -= Ld0[i] * res[i];
+            t = i + 1 + Gap;
+            if (t < Size) res[t] -= Ld1[i] * res[i];
+            t = i + 2 + Gap;
+            if (t < Size) res[t] -= Ld2[i] * res[i];
+            t = i + 3 + Gap;
+            if (t < Size) res[t] -= Ld3[i] * res[i];
+        }
+    }
+    /// решение U*res=vec
+    public void InvUMul(Span<Real> inOut) {
+        for (int i = Size - 1; i >= 0; i--)
+        {
+            inOut[i] /= Di[i];
+            
+            int t = i - 1;
+            if (t >= 0) inOut[t] -= Rd0[t] * inOut[i];
+            t = i - 1 - Gap;
+            if (t >= 0) inOut[t] -= Rd1[t] * inOut[i];
+            t = i - 2 - Gap;
+            if (t >= 0) inOut[t] -= Rd2[t] * inOut[i];
+            t = i - 3 - Gap;
+            if (t >= 0) inOut[t] -= Rd3[t] * inOut[i];
+        }
     }
     
     public IEnumerable<Real> FlatNonZero()

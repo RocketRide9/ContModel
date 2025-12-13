@@ -32,6 +32,20 @@ public interface IMatrix
     IEnumerable<Real> FlatNonZero();
 }
 
+// действия с верхним и нижним треугольниками
+public interface IHalves : IMatrix
+{
+    /// нижний треугольник на вектор
+    void LMul(ReadOnlySpan<Real> vec, Span<Real> res);
+    /// верхний треугольник на вектор
+    void UMul(ReadOnlySpan<Real> vec, Span<Real> res);
+    
+    /// in-place решение L*x=f для x
+    void InvLMul(Span<Real> inOut);
+    /// in-place решение U*x=f для x
+    void InvUMul(Span<Real> inOut);
+}
+
 // public interface IPatchable<T>
 // {
     

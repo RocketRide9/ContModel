@@ -30,36 +30,23 @@ class BicgStabHost : ISlaeSolver
     Real _eps;
 
     int _n = 0; // размерность СЛАУ
-    Real[] r;
-    Real[] di_inv;
-    Real[] y;
-    Real[] z;
-    Real[] ks;
-    Real[] kt;
-    Real[] r_hat;
-    Real[] p;
-    Real[] nu;
-    Real[] h;
-    Real[] s;
-    Real[] t;
+    Real[] r = [];
+    Real[] di_inv = [];
+    Real[] y = [];
+    Real[] z = [];
+    Real[] ks = [];
+    Real[] kt = [];
+    Real[] r_hat = [];
+    Real[] p = [];
+    Real[] nu = [];
+    Real[] h = [];
+    Real[] s = [];
+    Real[] t = [];
 
     public BicgStabHost(int maxIter, Real eps)
     {
         _maxIter = maxIter;
         _eps = eps;
-
-        r = [];
-        di_inv = [];
-        y =      [];
-        z =      [];
-        ks =     [];
-        kt =     [];
-        r_hat =  [];
-        p =      [];
-        nu =     [];
-        h =      [];
-        s =      [];
-        t =      [];
     }
 
     public static ISlaeSolver Construct(int maxIter, Real eps)
@@ -88,7 +75,8 @@ class BicgStabHost : ISlaeSolver
         }
     }
 
-    public (Real discrep, int iter) Solve(Types.IMatrix matrix, Span<Real> b, Span<Real> x)
+    public (Real discrep, int iter) Solve<T>(T matrix, Span<Real> b, Span<Real> x)
+    where T: Types.IMatrix
     {
         AllocateTemps(x.Length);
 

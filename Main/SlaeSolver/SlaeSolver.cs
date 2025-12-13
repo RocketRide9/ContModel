@@ -31,7 +31,8 @@ public interface ISlaeSolver
 {
     static abstract ISlaeSolver Construct(int maxIter, Real eps);
     // x используется как начальное приближение, туда же попадёт ответ
-    (Real discrep, int iter) Solve(Types.IMatrix matrix, Span<Real> b, Span<Real> x);
+    (Real discrep, int iter) Solve<T> (T matrix, Span<Real> b, Span<Real> x)
+    where T: Types.IMatrix;
     void AllocateTemps(int n);
 }
 

@@ -3,7 +3,8 @@ using TelmaCore;
 
 namespace Main.Tests;
 
-public class Tests
+[TestFixture]
+class QuadratureTests
 {
     [SetUp]
     public void Setup()
@@ -43,8 +44,6 @@ public class Tests
         var func = (PairF64 p) => p.X * p.X * p.Y * p.Y + p.X + p.Y;
         var res = Integrate2DOrder5(p0, p1, func);
         
-        Console.WriteLine(res);
-
         Assert.That(res, Is.EqualTo(4.0 / 9.0).Within(1e-13));
     }
     
@@ -56,8 +55,6 @@ public class Tests
         var func = (PairF64 p) => p.X * p.X * p.Y * p.Y + p.X + p.Y;
         var res = Integrate2DOrder5(p0, p1, func);
         
-        Console.WriteLine(res);
-
         Assert.That(res, Is.EqualTo(444444 + 4.0 / 9.0).Within(1e-7));
     }
 }

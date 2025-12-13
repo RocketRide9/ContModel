@@ -48,8 +48,17 @@ class Program
         Core.Init();
         Trace.WriteLine($"SparkCL Init: {sw.ElapsedMilliseconds}ms");
 
-        Spline();
+        var task = new TaskRect4x5XY1();
+        var prob = new ProblemLine(task, SRC_DIR + "InputRect4x5");
+
+        prob.Build<DiagSlaeBuilder<XY>>();
+        // SolveOCL<CgmOCL>(prob);
+        SolveEisenstatHost<CgmEisenstatHost>(prob);
+        SolveEisenstatHost<CgmEisenstatSimpleHost>(prob);
         return;
+        IndentityTest();
+        HalfMultiplies();
+        Spline();
         ReverseSigma();
         // ReverseI();
         ElectroMany();
@@ -65,6 +74,103 @@ class Program
                 )
             )
         );
+    }
+    
+    static void IndentityTest()
+    {
+        Real[] diag = [0, 0, 0, 0, 0];
+        Real[] identity = [1, 1, 1, 1, 1];
+        var matrix = new Matrices.Diag9Matrix {
+            Di = [..identity],
+            Ld3 = [..diag],
+            Ld2 = [..diag],
+            Ld1 = [..diag],
+            Ld0 = [..diag],
+            Rd3 = [..diag],
+            Rd2 = [..diag],
+            Rd1 = [..diag],
+            Rd0 = [..diag],
+        };
+        matrix.Rd0[0] += 0.5;
+        matrix.Ld0[0] += 0.5;
+        Real[] b = [..identity];
+        b[0] += 0.5;        
+        b[1] += 0.5;        
+        Real[] x = [..identity];
+        x[1] += 1;
+        x[2] += 1;
+        x[3] += 1;
+        
+        var solver = CgmEisenstatHost.Construct(
+            (int)1e+7,
+            1e-13
+        );
+        solver.AllocateTemps(x.Length);
+        
+        var (rr, iters) = solver.Solve(matrix, b, x);
+        
+        Console.WriteLine("Answer: " + string.Join(", ", x));
+    }
+    
+    static void SolveEisenstatHost<T>(ProblemLine prob)
+    where T: SlaeSolver.ISlaeSolver
+    {
+        Trace.WriteLine("Setting up solver");
+        Trace.Indent();
+        var sw = Stopwatch.StartNew();
+
+        // prob.SolveHost
+            var sw0 = Stopwatch.StartNew();
+            var x0 = Enumerable.Repeat((Real)0, prob.b.Length).ToArray();
+            var solver = T.Construct(
+                prob.ProblemParams.maxIter,
+                prob.ProblemParams.eps
+            );
+            solver.AllocateTemps(x0.Length);
+            Trace.WriteLine($"Solver prepare: {sw0.ElapsedMilliseconds}ms");
+            
+            sw0.Restart();
+            
+            var (rr, iters) = solver.Solve(prob.matrix as Matrices.Diag9Matrix, prob.b, x0);
+            var ans = x0;
+            Trace.WriteLine($"Solver {typeof(T).FullName}: {sw0.ElapsedMilliseconds}ms");
+        //
+        
+        sw.Stop();
+        var err = prob.Lebeg2Err(ans);
+        Console.WriteLine($"(err {err}) (iters {iters}) (discrep: {rr})");
+        Trace.WriteLine($"Solver total: {sw.ElapsedMilliseconds}мс");
+        Trace.Unindent();
+    }
+    
+    static void HalfMultiplies() {
+        var task = new TaskRect4x5x3();
+        var prob = new ProblemLine(task, SRC_DIR + "InputRect4x5");
+
+        prob.Build<DiagSlaeBuilder<XY>>();
+
+        var (ans, iters, rr) = prob.SolveOCL<BicgStabOCL>();
+
+        var matrix = prob.matrix as Matrices.Diag9Matrix;
+
+        var vec = new Real[ans.Length];
+        var vec2 = new Real[ans.Length];
+        ans.AsSpan().CopyTo(vec);
+
+        matrix!.InvUMul(vec);
+        matrix.UMul(vec, vec2);
+
+        var err = vec2
+            .Zip(ans)
+            .Select(a =>
+            {
+                return Real.Abs(a.First - a.Second);
+            })
+            .Sum();
+        
+        err /= ans.Length;
+        
+        Console.WriteLine($"Error: {err}");
     }
 
     static (LineMesh, Real[]) CalcDiff(ProblemLine prob, Real[] q)

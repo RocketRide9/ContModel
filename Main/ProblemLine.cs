@@ -31,7 +31,7 @@ using Types;
 using TelmaCore;
 using static FiniteElements.Rectangle.Lagrange.BiLinear;
 
-class ProblemLine {
+public class ProblemLine {
     TaskFuncs _funcs;
     SolverParams _problemParams;
     public SolverParams ProblemParams { get => _problemParams; }
@@ -42,6 +42,10 @@ class ProblemLine {
     Subdomain[] _subDomains;
     BoundaryCondition[] _boundaryConditions;
 
+    // TODO: подумать как сделать так, чтобы Problem
+    // хранил информацию о используемом типе матрицы.
+    // Сейчас настоящий тип пояляется только в момент
+    // построения матрицы, в методе Build<T>().
     public IMatrix matrix;
     public Real[] b;
     public GlobalMatrixImplType buildType = GlobalMatrixImplType.Host;
@@ -302,7 +306,6 @@ class ProblemLine {
     public (Real[] ans, int iters, Real rr) SolveHost<T> ()
     where T: SlaeSolver.ISlaeSolver
     {
-        
         var sw = Stopwatch.StartNew();
         var x0 = Enumerable.Repeat((Real)0, b.Length).ToArray();
         var solver = T.Construct(

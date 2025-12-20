@@ -82,8 +82,8 @@ class Program
         var prob = new ProblemLine(task, SRC_DIR + "InputRect4x5");
         prob.MeshRefine(new()
         {
-            XSplitCount = [1024/64],
-            YSplitCount = [1024/64],
+            XSplitCount = [64],
+            YSplitCount = [64],
             XStretchRatio = [1],
             YStretchRatio = [1],
         });
@@ -92,16 +92,24 @@ class Program
         {
             Console.WriteLine($"n = {prob.Mesh.nodesCount}");
             Trace.WriteLine($"n = {prob.Mesh.nodesCount}");
-            // prob.Build<DiagSlaeBuilder<XY>>();
-            prob.Build<MsrSlaeBuilder>();
+            prob.Build<DiagSlaeBuilder<XY>>();
             
-
             for (int i = 0; i < REPEAT_COUNT; i++)
             {
                 // SolveEisenstatHost<CgmEisenstatHost>(prob);
                 // SolveEisenstatHost<CgmEisenstatSimpleHost>(prob);
-                SolveOCL<CgmOCL>(prob);
-                // SolveOCL<CgmEisenstatOCL>(prob);
+                // SolveOCL<CgmOCL>(prob);
+                SolveOCL<CgmEisenstatOCL>(prob);
+            }
+
+            prob.Build<MsrSlaeBuilder>();
+            
+            for (int i = 0; i < REPEAT_COUNT; i++)
+            {
+                // SolveEisenstatHost<CgmEisenstatHost>(prob);
+                // SolveEisenstatHost<CgmEisenstatSimpleHost>(prob);
+                // SolveOCL<CgmOCL>(prob);
+                SolveOCL<CgmEisenstatOCL>(prob);
             }
 
             prob.MeshDouble();
@@ -164,7 +172,7 @@ class Program
             
             sw0.Restart();
             
-            var (rr, iters) = solver.Solve(prob.matrix as MathShards.Matrices.Diag9Matrix, prob.b, x0);
+            var (rr, iters) = solver.Solve(prob.matrix, prob.b, x0);
             var ans = x0;
             Trace.WriteLine($"Solver {typeof(T).FullName}: {sw0.ElapsedMilliseconds}ms");
         //

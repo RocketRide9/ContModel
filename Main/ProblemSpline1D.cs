@@ -26,10 +26,11 @@ using System.Text.Json;
 using System.Text.Unicode;
 using System.Diagnostics;
 
-using Types;
-using TelmaCore;
-using static FiniteElements.Rectangle.Lagrange.BiLinear;
-using SplineSlaeBuilder;
+using MathShards.Matrices.Types;
+using MathShards.TelmaCore;
+using static MathShards.FiniteElements.Rectangle.Lagrange.BiLinear;
+using MathShards.SlaeBuilder.Spline;
+using MathShards.Mesh.RectMesh;
 
 class ProblemSpline1D
 {

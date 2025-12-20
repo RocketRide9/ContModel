@@ -4,3 +4,6 @@
 [submodule "SparkCL"]
 	path = SparkCL
 	url = ../SparkCL.git
+[submodule "MathShards"]
+	path = MathShards
+	url = ../MathShards.git

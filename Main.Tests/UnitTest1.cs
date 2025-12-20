@@ -1,5 +1,5 @@
-using static Quadrature.Gauss;
-using TelmaCore;
+using static MathShards.Quadrature.Gauss;
+using MathShards.TelmaCore;
 
 namespace Main.Tests;
 

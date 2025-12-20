@@ -26,10 +26,12 @@ using System.Text.Json;
 using System.Text.Unicode;
 using System.Diagnostics;
 
-using FemSlaeBuilder;
-using Types;
-using TelmaCore;
-using static FiniteElements.Rectangle.Lagrange.BiLinear;
+using MathShards.SlaeBuilder.Fem;
+using MathShards.Matrices.Types;
+using MathShards.TelmaCore;
+using static MathShards.FiniteElements.Rectangle.Lagrange.BiLinear;
+using MathShards.Fem.Common;
+using MathShards.Mesh.RectMesh;
 
 public class ProblemLine {
     TaskFuncs _funcs;
@@ -304,7 +306,7 @@ public class ProblemLine {
     }
     
     public (Real[] ans, int iters, Real rr) SolveHost<T> ()
-    where T: SlaeSolver.ISlaeSolver
+    where T: MathShards.SlaeSolver.ISlaeSolver
     {
         var sw = Stopwatch.StartNew();
         var x0 = Enumerable.Repeat((Real)0, b.Length).ToArray();

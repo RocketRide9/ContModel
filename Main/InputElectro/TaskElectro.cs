@@ -1,5 +1,7 @@
 using Real = double;
 
+using MathShards.Fem.Common;
+
 class TaskElectro : TaskFuncs
 {
     public string Description => "Двухслойная среда";

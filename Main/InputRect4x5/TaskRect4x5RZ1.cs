@@ -1,5 +1,7 @@
 using Real = double;
 
+using MathShards.Fem.Common;
+
 class TaskRect4x5RZ1 : TaskFuncs
 {
     public string Description => "Прямоугольник 4на5 в цилиндрических координатах, полинов второй степени";

@@ -1,5 +1,7 @@
 using Real = double;
 
+using MathShards.Fem.Common;
+
 class TaskRect4x5x2 : TaskFuncs
 {
     public string Description => "Прямоугольник 4на5 x^2+y^2";

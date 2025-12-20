@@ -26,11 +26,13 @@ using System.Globalization;
 using System.Diagnostics;
 
 using SparkCL;
-using FemSlaeBuilder;
+using MathShards.SlaeBuilder.Fem;
+using MathShards.SlaeSolver;
+using MathShards.CoordSystem.Dim2;
 using SparkAlgos.SlaeSolver;
-using SlaeSolver;
-using CoordSystem.Dim2;
-using TelmaCore;
+using MathShards.TelmaCore;
+using MathShards.Mesh.RectMesh;
+using MathShards.SlaeBuilder.Spline;
 
 class Program
 {
@@ -40,6 +42,7 @@ class Program
         Thread.CurrentThread.CurrentCulture = CultureInfo.InvariantCulture;
         var unixMs = new DateTimeOffset(DateTime.Now).ToUnixTimeMilliseconds();
         Directory.CreateDirectory(SRC_DIR + "measurements");
+        Console.WriteLine( "Writing trace to " + Path.GetFullPath(SRC_DIR + "measurements") );
         var measures = new StreamWriter(SRC_DIR + "measurements/" + unixMs + ".txt");
         Trace.Listeners.Add(new TextWriterTraceListener(measures));
         Trace.AutoFlush = true;
@@ -48,13 +51,8 @@ class Program
         Core.Init();
         Trace.WriteLine($"SparkCL Init: {sw.ElapsedMilliseconds}ms");
 
-        var task = new TaskRect4x5XY1();
-        var prob = new ProblemLine(task, SRC_DIR + "InputRect4x5");
-
-        prob.Build<DiagSlaeBuilder<XY>>();
-        // SolveOCL<CgmOCL>(prob);
-        SolveEisenstatHost<CgmEisenstatHost>(prob);
-        SolveEisenstatHost<CgmEisenstatSimpleHost>(prob);
+        BenchEisenstat();
+        
         return;
         IndentityTest();
         HalfMultiplies();
@@ -76,11 +74,46 @@ class Program
         );
     }
     
+    static void BenchEisenstat() {
+        const int REPEAT_COUNT = 3;
+        const int REFINE_COUNT = 1;
+        
+        var task = new TaskRect4x5XY1();
+        var prob = new ProblemLine(task, SRC_DIR + "InputRect4x5");
+        prob.MeshRefine(new()
+        {
+            XSplitCount = [1024/64],
+            YSplitCount = [1024/64],
+            XStretchRatio = [1],
+            YStretchRatio = [1],
+        });
+
+        for (int r = 0; r < REFINE_COUNT; r++)
+        {
+            Console.WriteLine($"n = {prob.Mesh.nodesCount}");
+            Trace.WriteLine($"n = {prob.Mesh.nodesCount}");
+            // prob.Build<DiagSlaeBuilder<XY>>();
+            prob.Build<MsrSlaeBuilder>();
+            
+
+            for (int i = 0; i < REPEAT_COUNT; i++)
+            {
+                // SolveEisenstatHost<CgmEisenstatHost>(prob);
+                // SolveEisenstatHost<CgmEisenstatSimpleHost>(prob);
+                SolveOCL<CgmOCL>(prob);
+                // SolveOCL<CgmEisenstatOCL>(prob);
+            }
+
+            prob.MeshDouble();
+        }   
+    }
+    
     static void IndentityTest()
     {
         Real[] diag = [0, 0, 0, 0, 0];
         Real[] identity = [1, 1, 1, 1, 1];
-        var matrix = new Matrices.Diag9Matrix {
+        var matrix = new MathShards.Matrices.Diag9Matrix {
+            Gap = 1,
             Di = [..identity],
             Ld3 = [..diag],
             Ld2 = [..diag],
@@ -113,9 +146,9 @@ class Program
     }
     
     static void SolveEisenstatHost<T>(ProblemLine prob)
-    where T: SlaeSolver.ISlaeSolver
+    where T: MathShards.SlaeSolver.ISlaeSolver
     {
-        Trace.WriteLine("Setting up solver");
+        Trace.WriteLine("Host solver");
         Trace.Indent();
         var sw = Stopwatch.StartNew();
 
@@ -131,7 +164,7 @@ class Program
             
             sw0.Restart();
             
-            var (rr, iters) = solver.Solve(prob.matrix as Matrices.Diag9Matrix, prob.b, x0);
+            var (rr, iters) = solver.Solve(prob.matrix as MathShards.Matrices.Diag9Matrix, prob.b, x0);
             var ans = x0;
             Trace.WriteLine($"Solver {typeof(T).FullName}: {sw0.ElapsedMilliseconds}ms");
         //
@@ -151,7 +184,7 @@ class Program
 
         var (ans, iters, rr) = prob.SolveOCL<BicgStabOCL>();
 
-        var matrix = prob.matrix as Matrices.Diag9Matrix;
+        var matrix = prob.matrix as MathShards.Matrices.Diag9Matrix;
 
         var vec = new Real[ans.Length];
         var vec2 = new Real[ans.Length];
@@ -162,11 +195,10 @@ class Program
 
         var err = vec2
             .Zip(ans)
-            .Select(a =>
+            .Sum(a =>
             {
                 return Real.Abs(a.First - a.Second);
-            })
-            .Sum();
+            });
         
         err /= ans.Length;
         
@@ -175,7 +207,7 @@ class Program
 
     static (LineMesh, Real[]) CalcDiff(ProblemLine prob, Real[] q)
     {
-        var basisGrad = FiniteElements.Line.Lagrange.Linear.BasisGrad;
+        var basisGrad = MathShards.FiniteElements.Line.Lagrange.Linear.BasisGrad;
         
         var diffs = new Real[prob.Mesh.X.Length - 1];
         var xLine = new Real[prob.Mesh.X.Length - 1];
@@ -203,7 +235,7 @@ class Program
         var x0 = mesh.X[c];
         var x1 = mesh.X[c+1];
         Real res = 0;
-        var bas = FiniteElements.Line.Hermit.Cubic.BasisConverted;
+        var bas = MathShards.FiniteElements.Line.Hermit.Cubic.BasisConverted;
         for (int i = 0; i < 4; i++) {
             res += bas(i, x0, x1, x) * splineQ[2*c + i];
         }
@@ -250,7 +282,7 @@ class Program
 
 
         var splineProb = new ProblemSpline1D(SRC_DIR + "InputSpline", diffs, meshSlice);
-        splineProb.Build<SplineSlaeBuilder.MsrSlaeBuilderHermit1D>();
+        splineProb.Build<MsrSlaeBuilderHermit1D>();
         var res = SplineSolveOCL<BicgStabOCL>(splineProb);
 
         var splineMesh = splineProb._mesh;
@@ -569,7 +601,7 @@ class Program
     }
     
     static void ElectroSolveHost<T>(ProblemLine prob)
-    where T: SlaeSolver.ISlaeSolver
+    where T: MathShards.SlaeSolver.ISlaeSolver
     {
         var (ans, iters, rr) = prob.SolveHost<T>();
         
@@ -616,7 +648,7 @@ class Program
     static Real[] SolveOCL<T>(ProblemLine prob)
     where T: SparkAlgos.SlaeSolver.ISlaeSolver
     {
-        Trace.WriteLine("SolveOCL");
+        Trace.WriteLine("OpenCL solver");
         Trace.Indent();
 #if SPARKCL_COLLECT_TIME
         Core.ResetTime();

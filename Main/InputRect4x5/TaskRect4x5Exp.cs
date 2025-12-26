@@ -1,9 +1,3 @@
-#if USE_DOUBLE
-using Real = double;
-#else
-using Real = float;
-#endif
-
 using MathShards.Fem.Common;
 
 public class TaskRect4x5Exp : ITaskFuncs

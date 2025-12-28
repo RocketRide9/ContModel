@@ -46,7 +46,8 @@ class Program
         Trace.WriteLine($"SparkCL Init: {sw.ElapsedMilliseconds}ms");
         Trace.WriteLine($"Calculation type: {typeof(Real)}");
 
-        BenchEisenstat();
+        // BenchInvTriagMul();
+        BenchLarge();
         
         return;
         IndentityTest();
@@ -68,17 +69,62 @@ class Program
             )
         );
     }
+
+    static void BenchInvTriagMul()
+    {
+        const int REPEAT_COUNT = 2;
+        const int REFINE_COUNT = 1;
+
+        var task = new TaskRect4x5XY1();
+        var prob = new ProblemLine(task, SRC_DIR + "InputRect4x5");
+        prob.MeshRefine(new()
+        {
+            XSplitCount = [256],
+            YSplitCount = [256],
+            XStretchRatio = [1],
+            YStretchRatio = [1],
+        });
+
+        for (int r = 0; r < REFINE_COUNT; r++)
+        {
+            Console.WriteLine($"n = {prob.Mesh.nodesCount}");
+            Trace.WriteLine($"n = {prob.Mesh.nodesCount}");
+            prob.Build<DiagSlaeBuilder<XY>>();
+
+            for (int i = 0; i < REPEAT_COUNT; i++)
+            {
+                // SolveEisenstatHost<CgmEisenstatHost>(prob);
+                // SolveEisenstatHost<CgmHost>(prob);
+                SolveOCL<CgmEisenstatOCL>(prob);
+                // SolveEisenstatHost<CgmEisenstatSimpleHost>(prob);
+                SolveOCL<CgmOCL>(prob);
+            }
+
+            prob.Build<MsrSlaeBuilder>();
+
+            for (int i = 0; i < REPEAT_COUNT; i++)
+            {
+                // SolveEisenstatHost<CgmEisenstatHost>(prob);
+                // SolveEisenstatHost<CgmHost>(prob);
+                SolveOCL<CgmEisenstatOCL>(prob);
+                // SolveEisenstatHost<CgmEisenstatSimpleHost>(prob);
+                SolveOCL<CgmOCL>(prob);
+            }
+
+            prob.MeshDouble();
+        }
+    }
     
-    static void BenchEisenstat() {
-        const int REPEAT_COUNT = 5;
+    static void BenchLarge() {
+        const int REPEAT_COUNT = 2;
         const int REFINE_COUNT = 1;
         
         var task = new TaskRect4x5XY1();
         var prob = new ProblemLine(task, SRC_DIR + "InputRect4x5");
         prob.MeshRefine(new()
         {
-            XSplitCount = [1024],
-            YSplitCount = [1024],
+            XSplitCount = [1500],
+            YSplitCount = [1500],
             XStretchRatio = [1],
             YStretchRatio = [1],
         });
@@ -91,8 +137,8 @@ class Program
             
             for (int i = 0; i < REPEAT_COUNT; i++)
             {
-                SolveEisenstatHost<CgmEisenstatHost>(prob);
-                // SolveEisenstatHost<CgmHost>(prob);
+                // SolveEisenstatHost<CgmEisenstatHost>(prob);
+                SolveEisenstatHost<CgmHost>(prob);
                 // SolveOCL<CgmEisenstatOCL>(prob);
                 // SolveEisenstatHost<CgmEisenstatSimpleHost>(prob);
                 // SolveOCL<CgmOCL>(prob);
@@ -102,7 +148,7 @@ class Program
             
             for (int i = 0; i < REPEAT_COUNT; i++)
             {
-                SolveEisenstatHost<CgmEisenstatHost>(prob);
+                // SolveEisenstatHost<CgmEisenstatHost>(prob);
                 // SolveEisenstatHost<CgmHost>(prob);
                 // SolveOCL<CgmEisenstatOCL>(prob);
                 // SolveEisenstatHost<CgmEisenstatSimpleHost>(prob);

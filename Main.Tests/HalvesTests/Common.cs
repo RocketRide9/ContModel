@@ -1,6 +1,5 @@
-using SparkCL;
+using SparkCU;
 using MathShards.Matrices;
-using Silk.NET.OpenCL;
 using MathShards.Matrices.Types;
 
 namespace Main.Tests.HalvesTests;
@@ -56,7 +55,7 @@ static class Common
         {
             // TODO: в прошлый раз я забыл сделать ToHost. Это знак,
             // что API непонятный
-            using var accessor = comp1.MapHost(MapFlags.Read);
+            var accessor = comp1.MapHost(MapFlags.Read);
             for (int i = 0; i < b.Length; i++)
             {
                 Assert.That(accessor[i], Is.EqualTo(vec1[i]).Within(1e-12));
@@ -65,13 +64,13 @@ static class Common
 
         // InvLMul
         compB.CopyDeviceTo(comp1);
-        b.CopyTo(vec1);
+        b.CopyTo(vec1.AsSpan());
 
         compMatrix.InvLMul(comp1);
         matrix.InvLMul(vec1);
         comp1.ToHost();
         {
-            using var accessor = comp1.MapHost(MapFlags.Read);
+            var accessor = comp1.MapHost(MapFlags.Read);
             for (int i = 0; i < b.Length; i++)
             {
                 Assert.That(accessor[i], Is.EqualTo(vec1[i]).Within(1e-12));
@@ -83,7 +82,7 @@ static class Common
         matrix.UMul(b, vec1);
         comp1.ToHost();
         {
-            using var accessor = comp1.MapHost(MapFlags.Read);
+            var accessor = comp1.MapHost(MapFlags.Read);
             for (int i = 0; i < b.Length; i++)
             {
                 Assert.That(accessor[i], Is.EqualTo(vec1[i]).Within(1e-12));
@@ -92,13 +91,13 @@ static class Common
 
         // InvUMul
         compB.CopyDeviceTo(comp1);
-        b.CopyTo(vec1);
+        b.CopyTo(vec1.AsSpan());
 
         compMatrix.InvUMul(comp1);
         matrix.InvUMul(vec1);
         comp1.ToHost();
         {
-            using var accessor = comp1.MapHost(MapFlags.Read);
+            var accessor = comp1.MapHost(MapFlags.Read);
             for (int i = 0; i < b.Length; i++)
             {
                 Assert.That(accessor[i], Is.EqualTo(vec1[i]).Within(1e-12));

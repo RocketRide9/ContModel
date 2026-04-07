@@ -19,7 +19,7 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 using System.Globalization;
 using System.Diagnostics;
 
-using SparkCL;
+using SparkCU;
 using MathShards.SlaeBuilder.Fem;
 using MathShards.SlaeSolver;
 using MathShards.CoordSystem.Dim2;
@@ -27,10 +27,30 @@ using SparkAlgos.SlaeSolver;
 using MathShards.TelmaCore;
 using MathShards.Mesh.RectMesh;
 using MathShards.SlaeBuilder.Spline;
+using SparkCompute;
 
 class Program
 {
     const string SRC_DIR = "../../../";
+    const string SOURCE = """
+        
+    #define kernel __global__
+    kernel
+    void some_kernel() {}
+        
+    """;
+
+    static void TestNvrtc()
+    {
+        var prog = ComputeProgram.FromString(SOURCE);
+        var krn = prog.GetKernel(
+            "some_kernel",
+            new NDRange(32),
+            new NDRange(4)
+        );
+        krn.Execute();
+    }
+
     static void Main(string[] args)
     {
         Thread.CurrentThread.CurrentCulture = CultureInfo.InvariantCulture;
@@ -46,9 +66,10 @@ class Program
         Trace.WriteLine($"SparkCL Init: {sw.ElapsedMilliseconds}ms");
         Trace.WriteLine($"Calculation type: {typeof(Real)}");
 
+        TestNvrtc();
         // BenchInvTriagMul();
-        BenchLarge();
-        
+        //BenchLarge();
+
         return;
         IndentityTest();
         HalfMultiplies();
@@ -123,8 +144,8 @@ class Program
         var prob = new ProblemLine(task, SRC_DIR + "InputRect4x5");
         prob.MeshRefine(new()
         {
-            XSplitCount = [1500],
-            YSplitCount = [1500],
+            XSplitCount = [20 ],
+            YSplitCount = [20 ],
             XStretchRatio = [1],
             YStretchRatio = [1],
         });
@@ -138,10 +159,10 @@ class Program
             for (int i = 0; i < REPEAT_COUNT; i++)
             {
                 // SolveEisenstatHost<CgmEisenstatHost>(prob);
-                SolveEisenstatHost<CgmHost>(prob);
-                // SolveOCL<CgmEisenstatOCL>(prob);
+                //SolveEisenstatHost<CgmHost>(prob);
+                 //SolveOCL<CgmEisenstatOCL>(prob);
                 // SolveEisenstatHost<CgmEisenstatSimpleHost>(prob);
-                // SolveOCL<CgmOCL>(prob);
+                 SolveOCL<CgmOCL>(prob);
             }
 
             prob.Build<MsrSlaeBuilder>();

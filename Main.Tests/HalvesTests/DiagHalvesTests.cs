@@ -1,9 +1,8 @@
 using System.Globalization;
 using System.Diagnostics;
 
-using SparkCL;
+using SparkCU;
 using MathShards.Matrices;
-using Silk.NET.OpenCL;
 
 namespace Main.Tests.HalvesTests;
 

@@ -7,3 +7,6 @@
 [submodule "MathShards"]
 	path = MathShards
 	url = ../MathShards.git
+[submodule "managedCuda"]
+	path = managedCuda
+	url = git@github.com:kunzmi/managedCuda.git

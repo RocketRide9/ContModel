@@ -30,4 +30,13 @@
     <ProjectReference Include="../Main/Main.csproj" />
   </ItemGroup>
 
+    <ItemGroup>
+        <None Update="Test.cl">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+		<None Update="opencl_to_cuda.h">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</None>
+    </ItemGroup>
+
 </Project>

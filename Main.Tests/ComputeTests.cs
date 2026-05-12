@@ -1,15 +1,8 @@
 ﻿using NUnit.Framework.Internal;
-using Silk.NET.Core.Native;
 using SparkAlgos;
 using SparkCompute;
-using SparkCU;
-using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Main.Tests.ComputeTests;
 
@@ -42,7 +35,7 @@ class ComputeTests
     [Test]
     public static void Ids()
     {
-        var prg = ComputeProgram.FromFilename("Test");
+        var prg = ComputeProgram.FromFilename("Test.cl");
         var test1d = prg.GetKernel(
             "write_ids_1d",
             globalWork: new NDRange(128).PadTo(16),
@@ -69,9 +62,9 @@ class ComputeTests
     }
 
     [Test]
-    public static void SimpleFill()
+    public static void Fill()
     {
-        var prg = ComputeProgram.FromFilename("Test");
+        var prg = ComputeProgram.FromFilename("Test.cl");
         var test1d = prg.GetKernel(
             "fill",
             globalWork: new NDRange(128).PadTo(16),
@@ -94,15 +87,14 @@ class ComputeTests
     }
 
     [Test]
-    public static void BlasTests()
+    public static void BlasScale()
     {
-        var host = new Real[100];
+        var host = new Real[10];
         for (int i = 0; i < host.Length; i++)
         {
             host[i] = i % 10;
         }
         var dev = new ComputeBuffer<Real>(host, BufferFlags.OnHostAndDevice);
-        dev.ToDevice();
 
         var blas = Blas.GetInstance();
         blas.Scale(0.5, dev);
@@ -113,5 +105,29 @@ class ComputeTests
             var acc = dev.MapHost(MapFlags.Read);
             Assert.That(acc[i]*2, Is.EqualTo(i % 10).Within(1e-5));
         }
+    }
+
+
+    [Test]
+    public static void BlasDot()
+    {
+        var host0 = new Real[100];
+        var host1 = new Real[100];
+        Real ans = 0;
+        for (int i = 0; i < host0.Length; i++)
+        {
+            host0[i] = i % 10;
+            host1[i] = (i+5) % 10;
+            ans += host0[i] * host1[i];
+        }          
+        var dev0 = new ComputeBuffer<Real>(host0, BufferFlags.OnHostAndDevice);
+        var dev1 = new ComputeBuffer<Real>(host1, BufferFlags.OnHostAndDevice);
+
+        var blas = Blas.GetInstance();
+        blas.Scratch1 = new ComputeBuffer<Real>(1, BufferFlags.OnDevice);
+        blas.Scratch64 = new ComputeBuffer<Real>(64, BufferFlags.OnDevice);
+        var dot = blas.Dot(dev1, dev0);
+
+        Assert.That(dot, Is.EqualTo(ans).Within(1e-5));
     }
 }

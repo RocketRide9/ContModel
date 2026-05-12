@@ -1,7 +1,6 @@
 using System.Globalization;
 using System.Diagnostics;
 
-using SparkCU;
 using MathShards.CoordSystem.Dim2;
 using MathShards.SlaeBuilder.Fem;
 using SparkAlgos.SlaeSolver;

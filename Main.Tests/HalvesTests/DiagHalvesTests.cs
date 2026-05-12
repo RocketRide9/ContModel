@@ -1,7 +1,6 @@
 using System.Globalization;
 using System.Diagnostics;
 
-using SparkCU;
 using MathShards.Matrices;
 
 namespace Main.Tests.HalvesTests;

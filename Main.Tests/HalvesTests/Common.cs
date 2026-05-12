@@ -1,4 +1,3 @@
-using SparkCU;
 using MathShards.Matrices;
 using MathShards.Matrices.Types;
 

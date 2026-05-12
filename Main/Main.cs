@@ -19,7 +19,6 @@ along with this program.  If not, see <https://www.gnu.org/licenses/>.
 using System.Globalization;
 using System.Diagnostics;
 
-using SparkCU;
 using MathShards.SlaeBuilder.Fem;
 using MathShards.SlaeSolver;
 using MathShards.CoordSystem.Dim2;
@@ -33,13 +32,21 @@ class Program
 {
     const string SRC_DIR = "../../../";
     const string SOURCE = """
-        
-    #define kernel __global__
-    kernel
-    void some_kernel() {}
+    #define kernel extern "C" __global__
+    #define global
+
+    #define real double
+
+    kernel void some_kernel(
+    	global int* ids,
+    	int n
+    ) {
+    }
+    
         
     """;
 
+    /*
     static void TestNvrtc()
     {
         var prog = ComputeProgram.FromString(SOURCE);
@@ -50,6 +57,7 @@ class Program
         );
         krn.Execute();
     }
+    */
 
     static void Main(string[] args)
     {
@@ -63,12 +71,12 @@ class Program
         
         var sw = Stopwatch.StartNew();
         Core.Init();
-        Trace.WriteLine($"SparkCL Init: {sw.ElapsedMilliseconds}ms");
+        Trace.WriteLine($"Spark Compute Init: {sw.ElapsedMilliseconds}ms");
         Trace.WriteLine($"Calculation type: {typeof(Real)}");
 
-        TestNvrtc();
+        //TestNvrtc();
         // BenchInvTriagMul();
-        //BenchLarge();
+        BenchLarge();
 
         return;
         IndentityTest();
@@ -137,15 +145,15 @@ class Program
     }
     
     static void BenchLarge() {
-        const int REPEAT_COUNT = 2;
+        const int REPEAT_COUNT = 3;
         const int REFINE_COUNT = 1;
         
         var task = new TaskRect4x5XY1();
         var prob = new ProblemLine(task, SRC_DIR + "InputRect4x5");
         prob.MeshRefine(new()
         {
-            XSplitCount = [20 ],
-            YSplitCount = [20 ],
+            XSplitCount = [512],
+            YSplitCount = [512],
             XStretchRatio = [1],
             YStretchRatio = [1],
         });
@@ -165,7 +173,7 @@ class Program
                  SolveOCL<CgmOCL>(prob);
             }
 
-            prob.Build<MsrSlaeBuilder>();
+            // prob.Build<MsrSlaeBuilder>();
             
             for (int i = 0; i < REPEAT_COUNT; i++)
             {
@@ -176,7 +184,10 @@ class Program
                 // SolveOCL<CgmOCL>(prob);
             }
 
-            prob.MeshDouble();
+            if (r != REFINE_COUNT - 1)
+            {
+                prob.MeshDouble();
+            }
         }   
     }
     
@@ -721,7 +732,7 @@ class Program
     static Real[] SolveOCL<T>(ProblemLine prob)
     where T: SparkAlgos.SlaeSolver.ISlaeSolver
     {
-        Trace.WriteLine("OpenCL solver");
+        Trace.WriteLine("GPU solver");
         Trace.Indent();
 #if SPARKCL_COLLECT_TIME
         Core.ResetTime();

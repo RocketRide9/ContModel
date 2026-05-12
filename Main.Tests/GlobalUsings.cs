@@ -3,3 +3,5 @@ global using Real = double;
 #else
 global using Real = float;
 #endif
+
+global using SparkCL;
